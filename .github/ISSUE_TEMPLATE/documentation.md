@@ -1,7 +1,7 @@
 ---
 
 name: Documentation Improvement
-about: Report wrong or missing documentation in template_project
+about: Report wrong or missing documentation in bonn_thesis
 title: "DOC:"
 labels: "documentation"
 

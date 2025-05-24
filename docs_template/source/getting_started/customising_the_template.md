@@ -3,9 +3,9 @@ meet your specific needs.
 
 ### First step: Rename the project
 
-Open the entire directory in VS Code. Search for `template_project` in the entire
-codebase and replace it with `new_project_name`, i.e., a concise version of your
-project's name (often called a "slug"). Rename the folder `src/template_project` to
+Open the entire directory in VS Code. Search for `bonn_thesis` in the entire codebase
+and replace it with `new_project_name`, i.e., a concise version of your project's name
+(often called a "slug"). Rename the folder `src/bonn_thesis` to
 `src/<new_project_name>`!
 
 ```{warning}
@@ -23,7 +23,7 @@ attributed to changes you make rather than the original template.
 1. Open a terminal and navigate to the project root
 
    ```console
-   $ cd /to/root/of/template_project
+   $ cd /to/root/of/bonn_thesis
    ```
 
 1. Install the pre-commit hooks
@@ -67,9 +67,9 @@ Now, search for and replace the following placeholders in the entire codebase.
 
 | Placeholder                                                   | Replacement                                       |
 | ------------------------------------------------------------- | ------------------------------------------------- |
-| JANE DOE                                                      | Your full name                                    |
+| WILLIAM BACKES                                                | Your full name                                    |
 | EXAMPLE PROJECT                                               | Your project's name                               |
-| EXAMPLE UNIVERSITY                                            | Your university's name                            |
+| UNIVERSITY OF BONN                                            | Your university's name                            |
 | DOE2024                                                       | Your project's citation identifier                |
 | https://github.com/OpenSourceEconomics/econ-project-templates | The GitHub repo URL corresponding to your project |
 

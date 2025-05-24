@@ -1,8 +1,8 @@
 import pytask
 from _pytask.outcomes import ExitCode
 
-from template_project import config
-from template_project.config import ROOT
+from bonn_thesis import config
+from bonn_thesis.config import ROOT
 
 
 def test_pytask_build(monkeypatch, tmp_path):

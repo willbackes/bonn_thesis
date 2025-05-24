@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_series_equal
 
-from template_project.data_management.stats4schools_smoking_template import (
+from bonn_thesis.data_management.stats4schools_smoking_template import (
     _clean_current_smoker,
     _clean_gender,
     _clean_highest_qualification,

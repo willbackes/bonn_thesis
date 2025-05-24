@@ -4,8 +4,8 @@
 
 ### The big picture
 
-The following graph shows the contents of template_project root directory after
-executing `pytask`
+The following graph shows the contents of bonn_thesis root directory after executing
+`pytask`
 
 ```{figure} ../figures/generated/root_bld_src.png
 ---

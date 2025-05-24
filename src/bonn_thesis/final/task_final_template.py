@@ -3,8 +3,8 @@
 import pandas as pd
 import pytask
 
-from template_project.config import BLD, SRC, TEMPLATE_GROUPS
-from template_project.final.plot_template import plot_regression_by_age
+from bonn_thesis.config import BLD, SRC, TEMPLATE_GROUPS
+from bonn_thesis.final.plot_template import plot_regression_by_age
 
 for group in TEMPLATE_GROUPS:
 
