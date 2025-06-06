@@ -76,7 +76,12 @@ platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
 [tool.pixi.dependencies]
 python = "~=3.13"
 jupyterlab = "*"
+libgfortran = ">=14.2.0,<16"
+numpy = ">=2.2.6,<3"
+pandas = ">=2.2.3,<3"
+plotly = ">=5.2.0,<6"
 pre-commit = "*"
+psycopg2-binary = ">=2.9.6"
 pytask  = ">=0.5.0"
 pytask-latex = ">=0.4.2"
 pytask-parallel = ">=0.5.0"
@@ -84,10 +89,7 @@ pytest = "*"
 pytest-cov = "*"
 pytest-xdist = "*"
 statsmodels = "*"
-plotly = ">=5.2.0,<6"
-numpy = ">=2.2.6,<3"
-pandas = ">=2.2.3,<3"
-libgfortran = ">=14.2.0,<16"
+sqlalchemy = ">=2.0.41"
 
 [tool.pixi.pypi-dependencies]
 bonn_thesis = {path = ".", editable = true}
