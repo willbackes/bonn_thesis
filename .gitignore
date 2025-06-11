@@ -15,6 +15,9 @@
 # bld
 bld/
 
+#src
+src/bonn_thesis/data_management/helper.ipynb
+
 # latex
 *.aux
 *.bbl
