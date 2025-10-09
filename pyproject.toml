@@ -150,6 +150,7 @@ extend-ignore = [
     "ANN",  # Missing type annotations
     "COM812", # Conflict with ruff-format
     "D10",  # Missing docstrings
+    "D205",
     "ERA001",
     "ISC001", # Conflict with ruff-format
     "PD901", # df is a great name with functional data management
