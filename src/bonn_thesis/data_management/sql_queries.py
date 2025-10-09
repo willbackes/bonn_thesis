@@ -369,7 +369,7 @@ def extract_merged_linkedin_data(
             h.name AS hierarchy_name,
 
             -- Job Title Classification
-            jtc.job_title AS standardized_job_title
+            jtc.job_title AS job_title_standard
 
         FROM
             profile_experience pe

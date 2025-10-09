@@ -45,9 +45,7 @@ def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
     clean_df["hierarchy_name"] = experience_df["hierarchy_name"].astype(
         pd.CategoricalDtype()
     )
-    clean_df["gender"] = (
-        experience_df["gender"].replace({"F": 1, "M": 0}).astype(pd.Int8Dtype())
-    )
+    clean_df["gender"] = experience_df["gender"].astype(pd.CategoricalDtype())
     clean_df["prof_location"] = experience_df["prof_location"]
     clean_df["prof_city"] = experience_df["prof_city"]
     clean_df["prof_state"] = experience_df["prof_state"]
@@ -81,10 +79,8 @@ def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # Sort and clean dates efficiently
-    clean_df = clean_df.sort_values(
-        by=["prof_id", "experience_at_start"]
-    )  # update this sort after cleaning function is complete
-    # cleaned_df = clean_dates(sorted_df)
+    clean_df = clean_df.sort_values(by=["prof_id", "experience_at_start"])
+    clean_df = clean_dates(clean_df)
 
     return clean_df
 
@@ -116,9 +112,10 @@ def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
     # Step 2: Add reference columns for efficient processing
     result_df = _add_reference_columns(result_df)
 
-    # Step 3: Reconstruct dates using vectorized operations
-    result_df = _reconstruct_dates_vectorized(result_df)
+    # Step 3: Reconstruct dates based on the new method
+    result_df = _reconstruct_dates(result_df)
 
+    """
     # Clean up temporary columns
     cols_to_drop = [
         "experience_at_end",
@@ -132,7 +129,7 @@ def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
     result_df = result_df.drop(
         columns=[col for col in cols_to_drop if col in result_df.columns]
     )
-
+    """
     return result_df
 
 
@@ -170,286 +167,304 @@ def _add_reference_columns(df: pd.DataFrame) -> pd.DataFrame:
         df_sorted["exp_start_date"].notna() & df_sorted["exp_end_date"].notna()
     )
 
-    # Previous valid references
-    df_sorted["prev_valid_end"] = np.where(
-        valid_dates_mask, df_sorted["exp_end_date"], pd.NaT
-    )
-    df_sorted["prev_valid_end"] = df_sorted.groupby("prof_id")["prev_valid_end"].fillna(
-        method="ffill"
-    )
+    # Previous valid references - initialize as NaT datetime series
+    df_sorted["prev_valid_end"] = pd.NaT
+    df_sorted["prev_valid_end"] = df_sorted["prev_valid_end"].astype("datetime64[ns]")
+    df_sorted.loc[valid_dates_mask, "prev_valid_end"] = df_sorted.loc[
+        valid_dates_mask, "exp_end_date"
+    ]
+    df_sorted["prev_valid_end"] = df_sorted.groupby("prof_id")["prev_valid_end"].ffill()
 
-    df_sorted["prev_valid_end_exp"] = np.where(
-        valid_dates_mask, df_sorted["experience_at_end"], np.nan
-    )
+    df_sorted["prev_valid_end_exp"] = pd.Series(dtype=pd.Float32Dtype())
+    df_sorted.loc[valid_dates_mask, "prev_valid_end_exp"] = df_sorted.loc[
+        valid_dates_mask, "experience_at_end"
+    ]
     df_sorted["prev_valid_end_exp"] = df_sorted.groupby("prof_id")[
         "prev_valid_end_exp"
-    ].fillna(method="ffill")
+    ].ffill()
 
-    # Next valid references
-    df_sorted["next_valid_start"] = np.where(
-        valid_dates_mask, df_sorted["exp_start_date"], pd.NaT
+    # Next valid references - initialize as NaT datetime series
+    df_sorted["next_valid_start"] = pd.NaT
+    df_sorted["next_valid_start"] = df_sorted["next_valid_start"].astype(
+        "datetime64[ns]"
     )
+    df_sorted.loc[valid_dates_mask, "next_valid_start"] = df_sorted.loc[
+        valid_dates_mask, "exp_start_date"
+    ]
     df_sorted["next_valid_start"] = df_sorted.groupby("prof_id")[
         "next_valid_start"
-    ].fillna(method="bfill")
+    ].bfill()
 
-    df_sorted["next_valid_start_exp"] = np.where(
-        valid_dates_mask, df_sorted["experience_at_start"], np.nan
-    )
+    df_sorted["next_valid_start_exp"] = pd.Series(dtype=pd.Float32Dtype())
+    df_sorted.loc[valid_dates_mask, "next_valid_start_exp"] = df_sorted.loc[
+        valid_dates_mask, "experience_at_start"
+    ]
     df_sorted["next_valid_start_exp"] = df_sorted.groupby("prof_id")[
         "next_valid_start_exp"
-    ].fillna(method="bfill")
+    ].bfill()
 
-    # Add position within groups of missing dates for sequential processing
-    df_sorted["position_in_group"] = df_sorted.groupby(
-        ["prof_id", "has_missing_dates"]
-    ).cumcount()
+    # Add position within consecutive sequences of missing dates
+    # Create a group identifier for consecutive True values
+    df_sorted["position_in_group"] = 0  # Initialize with 0
+
+    # For each profile, identify consecutive sequences of missing dates
+    for _prof_id, group in df_sorted.groupby("prof_id"):
+        mask = group["has_missing_dates"]
+
+        # Create sequence groups: increment counter when transitioning False to True
+        sequence_change = mask & ~mask.shift(1, fill_value=False)
+        sequence_id = sequence_change.cumsum()
+
+        # Count within each sequence, but only for True values
+        position = np.where(mask, group.groupby(sequence_id).cumcount() + 1, 0)
+
+        df_sorted.loc[group.index, "position_in_group"] = position
 
     return df_sorted
 
 
-def _reconstruct_dates_vectorized(df: pd.DataFrame) -> pd.DataFrame:
-    """Reconstruct missing dates using vectorized operations where possible."""
+def _reconstruct_dates(df: pd.DataFrame) -> pd.DataFrame:
+    """Reconstruct missing dates based on available reference points.
+
+    Identifies 5 different cases and applies appropriate reconstruction method.
+    """
     missing_mask = df["has_missing_dates"]
 
     if not missing_mask.any():
         return df
 
-    # Calculate experience differences vectorized - handle NA values properly
-    exp_diff = df["experience_at_end"] - df["experience_at_start"]
+    # Initialize date_reconstruction_method column
+    df["date_reconstruction_method"] = None
 
-    # Create months_duration with proper NA handling
-    valid_exp_diff = exp_diff.notna() & (exp_diff > 0)
-    months_duration = pd.Series(index=df.index, dtype="Int64")  # Use nullable integer
+    # Calculate date differences in months - handle NaT values properly
+    # First compute the timedelta
+    date_diff = df["next_valid_start"] - df["prev_valid_end"]
 
-    # Fill valid values
-    months_duration.loc[valid_exp_diff] = np.clip(
-        (exp_diff.loc[valid_exp_diff] * 12).astype(pd.Int64Dtype()), 1, None
-    )
+    # Convert to days, handling NaT by checking if the series is datetime-like
+    if pd.api.types.is_timedelta64_dtype(date_diff):
+        df["diff_date"] = date_diff.dt.days / 30.44
+    else:
+        # If subtraction resulted in object dtype due to all NaT, create NaN series
+        df["diff_date"] = pd.Series([np.nan] * len(df), index=df.index)
 
-    # Fill invalid/missing values with default
-    months_duration = months_duration.fillna(3)
+    # Calculate experience differences (already in years, convert to months)
+    df["diff_exp"] = (df["next_valid_start_exp"] - df["prev_valid_end_exp"]) * 12
 
-    # Calculate spans between references
-    time_spans = _calculate_time_spans(df[missing_mask])
-    exp_spans = _calculate_experience_spans(df[missing_mask])
-
-    # Determine reconstruction method vectorized
-    concurrent_mask = (exp_spans * 12) > time_spans
-
-    # Reconstruct dates based on method
-    df = _apply_reconstruction_methods(
-        df, missing_mask, concurrent_mask, months_duration
-    )
-
-    return df
-
-
-def _calculate_time_spans(df_missing: pd.DataFrame) -> pd.Series:
-    """Calculate time spans between reference dates in months."""
-    time_diff = df_missing["next_valid_start"] - df_missing["prev_valid_end"]
-    months_span = (
-        (
-            time_diff.dt.days / 30.44  # Average days per month
-        )
-        .fillna(12)
-        .clip(lower=1)
-    )
-
-    return months_span
-
-
-def _calculate_experience_spans(df_missing: pd.DataFrame) -> pd.Series:
-    """Calculate experience spans between reference points."""
-    exp_spans = (
-        (df_missing["next_valid_start_exp"] - df_missing["prev_valid_end_exp"])
-        .fillna(0.25)
-        .clip(lower=0.25)
-    )
-
-    return exp_spans
-
-
-def _apply_reconstruction_methods(
-    df: pd.DataFrame,
-    missing_mask: pd.Series,
-    concurrent_mask: pd.Series,
-    months_duration: pd.Series,
-) -> pd.DataFrame:
-    """Apply reconstruction methods efficiently using vectorized operations
-    where possible.
-    """  # noqa: D205
+    # Identify the 5 cases
     has_prev = df["prev_valid_end"].notna()
     has_next = df["next_valid_start"].notna()
 
-    prev_only_mask = missing_mask & has_prev & ~has_next
-    next_only_mask = missing_mask & ~has_prev & has_next
-    both_mask = missing_mask & has_prev & has_next
+    # Case 1: Only previous reference available
+    case_1_mask = missing_mask & has_prev & ~has_next
 
-    # Reconstruct prev_only cases vectorized
-    if prev_only_mask.any():
-        df = _reconstruct_prev_only_vectorized(df, prev_only_mask, months_duration)
+    # Case 2: Only next reference available
+    case_2_mask = missing_mask & ~has_prev & has_next
 
-    # Reconstruct next_only cases vectorized
-    if next_only_mask.any():
-        df = _reconstruct_next_only_vectorized(df, next_only_mask, months_duration)
+    # Case 3 & 4: Both references available
+    both_refs_mask = missing_mask & has_prev & has_next
 
-    # For both_references cases, still need sequential processing per professional
-    # but optimized with better data structures
-    if both_mask.any():
-        df = _reconstruct_both_references_optimized(df, both_mask, concurrent_mask)
+    # For case 3 and 4, we need both diff values to be valid
+    valid_diffs_mask = both_refs_mask & df["diff_exp"].notna() & df["diff_date"].notna()
+
+    case_3_mask = valid_diffs_mask & (df["diff_exp"] > df["diff_date"])
+    case_4_mask = valid_diffs_mask & (df["diff_exp"] <= df["diff_date"])
+
+    # Case 5: No references available
+    case_5_mask = missing_mask & ~has_prev & ~has_next
+
+    # Apply reconstruction methods
+    if case_1_mask.any():
+        df = _previous_only(df, case_1_mask)
+
+    if case_2_mask.any():
+        df = _next_only(df, case_2_mask)
+
+    if case_3_mask.any():
+        df = _both_no_inactive_period(df, case_3_mask)
+
+    if case_4_mask.any():
+        df = _both_with_inactive_period(df, case_4_mask)
+
+    if case_5_mask.any():
+        df.loc[case_5_mask, "date_reconstruction_method"] = "no_reference"
+
+    # Clean up temporary columns
+    df = df.drop(columns=["diff_date", "diff_exp"], errors="ignore")
 
     return df
 
 
-def _reconstruct_prev_only_vectorized(
-    df: pd.DataFrame, mask: pd.Series, months_duration: pd.Series
-) -> pd.DataFrame:
-    """Vectorized reconstruction for prev_only cases."""
-    df.loc[mask, "cumsum_months"] = (
-        df[mask]
-        .groupby("prof_id")
-        .apply(
-            lambda x: x.reset_index()["position_in_group"].apply(
-                lambda pos: (months_duration[x.index] + 1).iloc[: pos + 1].sum()
+def _previous_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
+    """Reconstruct dates when only previous reference is available.
+
+    Likely the last experiences in a profile.
+    """
+    # Process each profile group separately
+    for _prof_id, group in df[mask].groupby("prof_id"):
+        sorted_group = group.sort_values("experience_at_start")
+
+        prev_end = pd.Timestamp(sorted_group.iloc[0]["prev_valid_end"])
+
+        for idx in sorted_group.index:
+            # Start date: 1 month after previous end
+            exp_start = prev_end + pd.DateOffset(months=1)
+
+            # Duration based on experience difference
+            exp_diff = (
+                df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
             )
-        )
-        .to_numpy()
-    )
+            if pd.notna(exp_diff) and exp_diff > 0:
+                duration_months = int(exp_diff * 12)
+            else:
+                duration_months = 3  # Default minimum
 
-    # Calculate start dates
-    start_dates = (
-        df.loc[mask, "prev_valid_end"]
-        + pd.to_timedelta(df.loc[mask, "cumsum_months"], unit="D") * 30.44
-    )
-    end_dates = start_dates + pd.to_timedelta(months_duration[mask], unit="D") * 30.44
+            exp_end = exp_start + pd.DateOffset(months=duration_months)
 
-    df.loc[mask, "exp_start_date"] = start_dates
-    df.loc[mask, "exp_end_date"] = end_dates
-    df.loc[mask, "duration"] = months_duration[mask] / 12
-    df.loc[mask, "date_reconstruction_method"] = "from_previous"
+            # Update dataframe
+            df.loc[idx, "exp_start_date"] = exp_start
+            df.loc[idx, "exp_end_date"] = exp_end
+            df.loc[idx, "duration"] = duration_months / 12
+            df.loc[idx, "date_reconstruction_method"] = "previous_only"
+
+            # Update for next iteration
+            prev_end = exp_end
 
     return df
 
 
-def _reconstruct_next_only_vectorized(
-    df: pd.DataFrame, mask: pd.Series, months_duration: pd.Series
-) -> pd.DataFrame:
-    """Vectorized reconstruction for next_only cases."""
-    df_subset = df[mask].copy()
-    df_subset["reverse_pos"] = (
-        df_subset.groupby("prof_id")["position_in_group"].transform("max")
-        - df_subset["position_in_group"]
-    )
+def _next_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
+    """Reconstruct dates when only next reference is available.
 
-    # Calculate cumulative months working backwards
-    cumsum_months = (
-        df_subset.groupby("prof_id")
-        .apply(
-            lambda x: x.sort_values("reverse_pos")
-            .reset_index()
-            .apply(
-                lambda row: (months_duration[x.index] + 1)
-                .iloc[: int(row["reverse_pos"]) + 1]
-                .sum(),
-                axis=1,
+    Likely the first experiences in a profile.
+    """
+    # Process each profile group separately
+    for _prof_id, group in df[mask].groupby("prof_id"):
+        sorted_group = group.sort_values("experience_at_start", ascending=False)
+
+        next_start = pd.Timestamp(sorted_group.iloc[0]["next_valid_start"])
+
+        for idx in sorted_group.index:
+            # End date: 1 month before next start
+            exp_end = next_start - pd.DateOffset(months=1)
+
+            # Duration based on experience difference
+            exp_diff = (
+                df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
             )
-        )
-        .to_numpy()
-    )
+            if pd.notna(exp_diff) and exp_diff > 0:
+                duration_months = int(exp_diff * 12)
+            else:
+                duration_months = 3  # Default minimum
 
-    # Calculate end dates working backwards
-    end_dates = (
-        df.loc[mask, "next_valid_start"]
-        - pd.to_timedelta(cumsum_months, unit="D") * 30.44
-    )
-    start_dates = end_dates - pd.to_timedelta(months_duration[mask], unit="D") * 30.44
+            exp_start = exp_end - pd.DateOffset(months=duration_months)
 
-    df.loc[mask, "exp_start_date"] = start_dates
-    df.loc[mask, "exp_end_date"] = end_dates
-    df.loc[mask, "duration"] = months_duration[mask] / 12
-    df.loc[mask, "date_reconstruction_method"] = "from_next"
+            # Update dataframe
+            df.loc[idx, "exp_start_date"] = exp_start
+            df.loc[idx, "exp_end_date"] = exp_end
+            df.loc[idx, "duration"] = duration_months / 12
+            df.loc[idx, "date_reconstruction_method"] = "next_only"
 
-    return df
-
-
-def _reconstruct_both_references_optimized(
-    df: pd.DataFrame, mask: pd.Series, concurrent_mask: pd.Series
-) -> pd.DataFrame:
-    """Optimized reconstruction for both_references cases.
-    Uses efficient data structures and minimal loops.
-    """  # noqa: D205
-    both_subset = df[mask].copy()
-
-    # Pre-calculate all needed values
-    both_subset["exp_span"] = (
-        both_subset["next_valid_start_exp"] - both_subset["prev_valid_end_exp"]
-    )
-    both_subset["time_span_months"] = _calculate_time_spans(both_subset)
-    both_subset["role_exp_span"] = (
-        both_subset["experience_at_end"] - both_subset["experience_at_start"]
-    )
-    both_subset["is_concurrent"] = concurrent_mask[mask]
-
-    # Process each professional's data efficiently
-    results = []
-    for _prof_id, group in both_subset.groupby("prof_id"):
-        group_result = _process_professional_both_refs(group)
-        results.append(group_result)
-
-    if results:
-        result_df = pd.concat(results)
-
-        # Update original dataframe
-        df.loc[result_df.index, "exp_start_date"] = result_df["exp_start_date"]
-        df.loc[result_df.index, "exp_end_date"] = result_df["exp_end_date"]
-        df.loc[result_df.index, "duration"] = result_df["duration"]
-        df.loc[result_df.index, "date_reconstruction_method"] = result_df[
-            "date_reconstruction_method"
-        ]
+            # Update for next iteration
+            next_start = exp_start
 
     return df
 
 
-def _process_professional_both_refs(group: pd.DataFrame) -> pd.DataFrame:
-    """Process a single professional's both_references positions efficiently."""
-    group = group.sort_values("experience_at_start").copy()
+def _both_no_inactive_period(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
+    """Reconstruct dates when both references available and diff_exp > diff_date.
 
-    # Initialize with first reference
-    prev_end = group.iloc[0]["prev_valid_end"]
+    Accommodates longer experience span into available date span (concurrent roles).
+    """
+    # Process each profile group separately
+    for _prof_id, group in df[mask].groupby("prof_id"):
+        sorted_group = group.sort_values("experience_at_start")
 
-    for idx, row in group.iterrows():
-        # Calculate position dates
-        start_date = prev_end + pd.DateOffset(months=1)
+        prev_end = pd.Timestamp(sorted_group.iloc[0]["prev_valid_end"])
+        prev_valid_end_exp = float(sorted_group.iloc[0]["prev_valid_end_exp"])
+        next_valid_start_exp = float(sorted_group.iloc[0]["next_valid_start_exp"])
 
-        # Calculate duration based on method
-        if row["is_concurrent"]:
-            role_portion = (
-                row["role_exp_span"] / row["exp_span"] if row["exp_span"] > 0 else 0.5
+        # Calculate total experience span
+        total_exp_span = next_valid_start_exp - prev_valid_end_exp
+
+        for idx in sorted_group.index:
+            # Start date: 1 month after previous end
+            exp_start = prev_end + pd.DateOffset(months=1)
+
+            # Duration based on proportional experience
+            exp_diff = (
+                df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
             )
-            role_months = max(3, int(row["time_span_months"] * role_portion))
-            method = "from_both_concurrent"
+
+            if pd.notna(exp_diff) and exp_diff > 0 and total_exp_span > 0:
+                # Proportional allocation
+                proportion = exp_diff / total_exp_span
+                available_months = float(df.loc[idx, "diff_date"])
+                duration_months = max(3, int(available_months * proportion))
+            else:
+                duration_months = 3  # Default minimum for zero experience
+
+            exp_end = exp_start + pd.DateOffset(months=duration_months)
+
+            # Update dataframe
+            df.loc[idx, "exp_start_date"] = exp_start
+            df.loc[idx, "exp_end_date"] = exp_end
+            df.loc[idx, "duration"] = duration_months / 12
+            df.loc[idx, "date_reconstruction_method"] = "both_no_inactive"
+
+            # Update for next iteration
+            prev_end = exp_end
+
+    return df
+
+
+def _both_with_inactive_period(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
+    """Reconstruct dates when both references available and diff_exp <= diff_date.
+
+    Distributes unemployment periods uniformly between job transitions.
+    """
+    # Process each profile group separately
+    for _prof_id, group in df[mask].groupby("prof_id"):
+        sorted_group = group.sort_values("experience_at_start")
+
+        prev_end = pd.Timestamp(sorted_group.iloc[0]["prev_valid_end"])
+
+        # Calculate inactive period per transition
+        n = len(sorted_group)
+        if n > 1:
+            total_inactive = float(df.loc[sorted_group.index[0], "diff_date"]) - float(
+                df.loc[sorted_group.index[0], "diff_exp"]
+            )
+            inactive_per_transition = (
+                total_inactive / (n - 1) if total_inactive > 0 else 0
+            )
         else:
-            role_months = (
-                max(3, int(12 * row["role_exp_span"]))
-                if pd.notna(row["role_exp_span"])
-                else 3
+            inactive_per_transition = 0
+
+        for i, idx in enumerate(sorted_group.index):
+            # Start date: 1 month after previous end
+            exp_start = prev_end + pd.DateOffset(months=1)
+
+            # Duration based on experience difference
+            exp_diff = (
+                df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
             )
-            method = "from_both"
+            if pd.notna(exp_diff) and exp_diff > 0:
+                duration_months = int(exp_diff * 12)
+            else:
+                duration_months = 3  # Default minimum
 
-        end_date = start_date + pd.DateOffset(months=role_months)
+            exp_end = exp_start + pd.DateOffset(months=duration_months)
 
-        # Ensure doesn't exceed next reference
-        if end_date >= row["next_valid_start"]:
-            end_date = row["next_valid_start"] - pd.DateOffset(months=1)
+            # Update dataframe
+            df.loc[idx, "exp_start_date"] = exp_start
+            df.loc[idx, "exp_end_date"] = exp_end
+            df.loc[idx, "duration"] = duration_months / 12
+            df.loc[idx, "date_reconstruction_method"] = "both_with_inactive"
 
-        # Update row
-        group.loc[idx, "exp_start_date"] = start_date
-        group.loc[idx, "exp_end_date"] = end_date
-        group.loc[idx, "duration"] = role_months / 12
-        group.loc[idx, "date_reconstruction_method"] = method
+            # Update for next iteration (add inactive period if not last experience)
+            if i < n - 1:
+                prev_end = exp_end + pd.DateOffset(months=int(inactive_per_transition))
+            else:
+                prev_end = exp_end
 
-        # Update for next iteration
-        prev_end = end_date
-
-    return group
+    return df
