@@ -22,4 +22,4 @@ config_database = {
     }
 }
 
-BATCH_SIZE = 50000
+BATCH_SIZE = 10000
