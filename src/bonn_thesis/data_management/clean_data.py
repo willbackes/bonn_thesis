@@ -79,7 +79,6 @@ def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # Sort and clean dates efficiently
-    clean_df = clean_df.sort_values(by=["prof_id", "experience_at_start"])
     clean_df = clean_dates(clean_df)
 
     return clean_df
@@ -101,6 +100,8 @@ def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
     # Work on a copy to avoid modifying the original
     result_df = df.copy()
 
+    result_df = result_df.sort_values(by=["prof_id", "experience_at_start"])
+
     # Add experience_at_end column vectorized
     result_df["experience_at_end"] = result_df.groupby("prof_id")[
         "experience_at_start"
@@ -109,13 +110,15 @@ def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
     # Step 1: Identify and clear duplicate dates vectorized
     result_df = _identify_and_clear_duplicates(result_df)
 
-    # Step 2: Add reference columns for efficient processing
+    # Step 2: Identify overlapping experiences
+    result_df = _identify_overlapping_experiences(result_df)
+
+    # Step 3: Add reference columns for efficient processing
     result_df = _add_reference_columns(result_df)
 
-    # Step 3: Reconstruct dates based on the new method
+    # Step 4: Reconstruct dates based on the new method
     result_df = _reconstruct_dates(result_df)
 
-    """
     # Clean up temporary columns
     cols_to_drop = [
         "experience_at_end",
@@ -125,11 +128,12 @@ def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
         "prev_valid_end_exp",
         "next_valid_start_exp",
         "position_in_group",
+        # "is_overlapping_reference",
     ]
     result_df = result_df.drop(
         columns=[col for col in cols_to_drop if col in result_df.columns]
     )
-    """
+
     return result_df
 
 
@@ -156,15 +160,73 @@ def _identify_and_clear_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _identify_overlapping_experiences(df: pd.DataFrame) -> pd.DataFrame:
+    """Identify overlapping experiences and flag shorter ones that shouldn't
+    be used as references.
+
+    An experience is flagged if:
+    - It has valid dates
+    - It overlaps with another experience in a different company
+    - It starts after AND ends before the overlapping experience
+    """
+    df["is_overlapping_reference"] = False
+
+    for _prof_id, group in df.groupby("prof_id"):
+        # Only consider experiences with valid dates
+        valid_dates = group[
+            group["exp_start_date"].notna() & group["exp_end_date"].notna()
+        ].copy()
+
+        if len(valid_dates) <= 1:
+            continue
+
+        # Compare each experience with all others
+        for i, (idx_i, exp_i) in enumerate(valid_dates.iterrows()):
+            for j, (idx_j, exp_j) in enumerate(valid_dates.iterrows()):
+                if i >= j:  # Skip self-comparison and avoid duplicate checks
+                    continue
+
+                # Check if they're from different companies
+                if exp_i["exp_company"] == exp_j["exp_company"]:
+                    continue
+
+                # Check for overlap
+                overlap_start = max(exp_i["exp_start_date"], exp_j["exp_start_date"])
+                overlap_end = min(exp_i["exp_end_date"], exp_j["exp_end_date"])
+
+                if overlap_start < overlap_end:
+                    # There is an overlap
+
+                    # exp_i is contained within exp_j
+                    if (
+                        exp_i["exp_start_date"] >= exp_j["exp_start_date"]
+                        and exp_i["exp_end_date"] <= exp_j["exp_end_date"]
+                    ):
+                        df.loc[idx_i, "is_overlapping_reference"] = True
+
+                    # exp_j is contained within exp_i
+                    elif (
+                        exp_j["exp_start_date"] >= exp_i["exp_start_date"]
+                        and exp_j["exp_end_date"] <= exp_i["exp_end_date"]
+                    ):
+                        df.loc[idx_j, "is_overlapping_reference"] = True
+
+    return df
+
+
 def _add_reference_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Add reference columns for previous and next valid dates using
-    vectorized operations.
-    """  # noqa: D205
+    """Add reference columns for previous and next valid dates using vectorized
+    operations.
+
+    Modified to skip experiences flagged as overlapping references.
+    """
     df_sorted = df.copy()
 
-    # Create mask for valid dates
+    # Create mask for valid dates that are NOT flagged as overlapping references
     valid_dates_mask = (
-        df_sorted["exp_start_date"].notna() & df_sorted["exp_end_date"].notna()
+        df_sorted["exp_start_date"].notna()
+        & df_sorted["exp_end_date"].notna()
+        & ~df_sorted["is_overlapping_reference"]
     )
 
     # Previous valid references - initialize as NaT datetime series
@@ -204,8 +266,7 @@ def _add_reference_columns(df: pd.DataFrame) -> pd.DataFrame:
     ].bfill()
 
     # Add position within consecutive sequences of missing dates
-    # Create a group identifier for consecutive True values
-    df_sorted["position_in_group"] = 0  # Initialize with 0
+    df_sorted["position_in_group"] = 0
 
     # For each profile, identify consecutive sequences of missing dates
     for _prof_id, group in df_sorted.groupby("prof_id"):
@@ -347,7 +408,7 @@ def _next_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
             # End date: 1 month before next start
             exp_end = next_start - pd.DateOffset(months=1)
 
-            # Duration based on experience difference
+            # based on experience difference
             exp_diff = (
                 df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
             )
