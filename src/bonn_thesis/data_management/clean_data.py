@@ -358,36 +358,36 @@ def _reconstruct_dates(df: pd.DataFrame) -> pd.DataFrame:
 def _previous_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
     """Reconstruct dates when only previous reference is available.
 
-    Likely the last experiences in a profile.
+    Use the latest prev_valid_end across the whole profile as the starting reference.
     """
-    # Process each profile group separately
-    for _prof_id, group in df[mask].groupby("prof_id"):
+    for prof_id, group in df[mask].groupby("prof_id"):
         sorted_group = group.sort_values("experience_at_start")
 
-        prev_end = pd.Timestamp(sorted_group.iloc[0]["prev_valid_end"])
+        # Use the latest prev_valid_end available for the profile
+        profile_prev = df.loc[df["prof_id"] == prof_id, "prev_valid_end"].dropna()
+        if len(profile_prev) == 0:
+            # no profile-level previous reference -> skip
+            continue
+        prev_end = pd.to_datetime(profile_prev.max())
 
         for idx in sorted_group.index:
-            # Start date: 1 month after previous end
             exp_start = prev_end + pd.DateOffset(months=1)
 
-            # Duration based on experience difference
             exp_diff = (
                 df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
             )
             if pd.notna(exp_diff) and exp_diff > 0:
                 duration_months = int(exp_diff * 12)
             else:
-                duration_months = 3  # Default minimum
+                duration_months = 3
 
             exp_end = exp_start + pd.DateOffset(months=duration_months)
 
-            # Update dataframe
             df.loc[idx, "exp_start_date"] = exp_start
             df.loc[idx, "exp_end_date"] = exp_end
             df.loc[idx, "duration"] = duration_months / 12
             df.loc[idx, "date_reconstruction_method"] = "previous_only"
 
-            # Update for next iteration
             prev_end = exp_end
 
     return df
@@ -396,36 +396,36 @@ def _previous_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
 def _next_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
     """Reconstruct dates when only next reference is available.
 
-    Likely the first experiences in a profile.
+    Use the earliest next_valid_start available for the profile as the reference.
     """
-    # Process each profile group separately
-    for _prof_id, group in df[mask].groupby("prof_id"):
+    for prof_id, group in df[mask].groupby("prof_id"):
         sorted_group = group.sort_values("experience_at_start", ascending=False)
 
-        next_start = pd.Timestamp(sorted_group.iloc[0]["next_valid_start"])
+        # Use the earliest next_valid_start available for the profile
+        profile_next = df.loc[df["prof_id"] == prof_id, "next_valid_start"].dropna()
+        if len(profile_next) == 0:
+            # no profile-level next reference -> skip
+            continue
+        next_start = pd.to_datetime(profile_next.min())
 
         for idx in sorted_group.index:
-            # End date: 1 month before next start
             exp_end = next_start - pd.DateOffset(months=1)
 
-            # based on experience difference
             exp_diff = (
                 df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
             )
             if pd.notna(exp_diff) and exp_diff > 0:
                 duration_months = int(exp_diff * 12)
             else:
-                duration_months = 3  # Default minimum
+                duration_months = 3
 
             exp_start = exp_end - pd.DateOffset(months=duration_months)
 
-            # Update dataframe
             df.loc[idx, "exp_start_date"] = exp_start
             df.loc[idx, "exp_end_date"] = exp_end
             df.loc[idx, "duration"] = duration_months / 12
             df.loc[idx, "date_reconstruction_method"] = "next_only"
 
-            # Update for next iteration
             next_start = exp_start
 
     return df
