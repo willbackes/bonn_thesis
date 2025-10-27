@@ -1,4 +1,4 @@
-"""Functions to clean SQL data sets."""
+"""Functions to clean SQL experience data sets."""
 
 import numpy as np
 import pandas as pd
@@ -81,11 +81,10 @@ def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
     # Sort and clean dates efficiently
     clean_df = clean_dates(clean_df)
 
+    # Recalculate duration based on cleaned dates
+    clean_df = calculate_duration(clean_df)
+
     return clean_df
-
-
-def clean_education_data(education_df: pd.DataFrame) -> pd.DataFrame:
-    return education_df
 
 
 def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
@@ -135,6 +134,38 @@ def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return result_df
+
+
+def calculate_duration(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute duration (in years, float32) from exp_start_date and exp_end_date.
+
+    Args:
+        df (pd.DataFrame): DataFrame with experience data.
+
+    Returns:
+        pd.DataFrame: DataFrame with computed duration column.
+    """
+    # Ensure column exists
+    if "duration" not in df.columns:
+        df["duration"] = pd.Series(dtype=pd.Float32Dtype())
+
+    # Mask with both dates present
+    mask = df["exp_start_date"].notna() & df["exp_end_date"].notna()
+
+    # Compute days difference safely
+    days = (df.loc[mask, "exp_end_date"] - df.loc[mask, "exp_start_date"]).dt.days
+
+    # Convert to years
+    duration_years = (days / 365).round(2)
+
+    df.loc[mask, "duration"] = duration_years.astype(pd.Float32Dtype())
+
+    # For rows without full dates, set duration to NA (nullable float)
+    df.loc[~mask, "duration"] = pd.Series(
+        [pd.NA] * (~mask).sum(), dtype=pd.Float32Dtype()
+    )
+
+    return df
 
 
 def _identify_and_clear_duplicates(df: pd.DataFrame) -> pd.DataFrame:
@@ -385,7 +416,6 @@ def _previous_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
 
             df.loc[idx, "exp_start_date"] = exp_start
             df.loc[idx, "exp_end_date"] = exp_end
-            df.loc[idx, "duration"] = duration_months / 12
             df.loc[idx, "date_reconstruction_method"] = "previous_only"
 
             prev_end = exp_end
@@ -423,7 +453,6 @@ def _next_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
 
             df.loc[idx, "exp_start_date"] = exp_start
             df.loc[idx, "exp_end_date"] = exp_end
-            df.loc[idx, "duration"] = duration_months / 12
             df.loc[idx, "date_reconstruction_method"] = "next_only"
 
             next_start = exp_start
@@ -469,7 +498,6 @@ def _both_no_inactive_period(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
             # Update dataframe
             df.loc[idx, "exp_start_date"] = exp_start
             df.loc[idx, "exp_end_date"] = exp_end
-            df.loc[idx, "duration"] = duration_months / 12
             df.loc[idx, "date_reconstruction_method"] = "both_no_inactive"
 
             # Update for next iteration
@@ -519,7 +547,6 @@ def _both_with_inactive_period(df: pd.DataFrame, mask: pd.Series) -> pd.DataFram
             # Update dataframe
             df.loc[idx, "exp_start_date"] = exp_start
             df.loc[idx, "exp_end_date"] = exp_end
-            df.loc[idx, "duration"] = duration_months / 12
             df.loc[idx, "date_reconstruction_method"] = "both_with_inactive"
 
             # Update for next iteration (add inactive period if not last experience)
