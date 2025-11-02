@@ -84,6 +84,9 @@ def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
     # Recalculate duration based on cleaned dates
     clean_df = calculate_duration(clean_df)
 
+    # Recalculate experience_at_start based on cleaned dates
+    clean_df = recalculate_experience_at_start(clean_df)
+
     return clean_df
 
 
@@ -164,6 +167,66 @@ def calculate_duration(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[~mask, "duration"] = pd.Series(
         [pd.NA] * (~mask).sum(), dtype=pd.Float32Dtype()
     )
+
+    return df
+
+
+def recalculate_experience_at_start(df: pd.DataFrame) -> pd.DataFrame:
+    """Recalculate experience_at_start based on actual employment dates.
+
+    For each experience, computes cumulative employment time (in years) up to
+    the start date, counting overlapping periods only once.
+
+    Args:
+        df: DataFrame with cleaned experience data including exp_start_date
+        and exp_end_date
+
+    Returns:
+        DataFrame with new column 'experience_at_start_recalc'
+    """
+    df = df.copy()
+    df["experience_at_start_recalc"] = pd.Series(dtype=pd.Float32Dtype())
+
+    for _prof_id, group in df.groupby("prof_id"):
+        # Sort by start date to process chronologically
+        group_sorted = group.sort_values("exp_start_date")
+
+        # Only process experiences with valid dates
+        valid_mask = (
+            group_sorted["exp_start_date"].notna()
+            & group_sorted["exp_end_date"].notna()
+        )
+        valid_exps = group_sorted[valid_mask].copy()
+
+        if len(valid_exps) == 0:
+            continue
+
+        for idx in valid_exps.index:
+            current_start = df.loc[idx, "exp_start_date"]
+
+            # Get all previous experiences that started before current start
+            previous_exps = valid_exps[
+                valid_exps["exp_start_date"] < current_start
+            ].copy()
+
+            if len(previous_exps) == 0:
+                # First job - no previous experience
+                df.loc[idx, "experience_at_start_recalc"] = 0.0
+                continue
+
+            # Clip overlapping jobs to the current start date
+            # Use np.minimum to avoid lambda closure issue
+            previous_exps["clipped_end"] = np.minimum(
+                previous_exps["exp_end_date"].values, current_start
+            )
+
+            # Calculate total months worked, accounting for overlaps
+            total_months = _calculate_non_overlapping_months(
+                previous_exps[["exp_start_date", "clipped_end"]].values
+            )
+
+            # Convert to years
+            df.loc[idx, "experience_at_start_recalc"] = round(total_months / 12, 2)
 
     return df
 
@@ -556,3 +619,51 @@ def _both_with_inactive_period(df: pd.DataFrame, mask: pd.Series) -> pd.DataFram
                 prev_end = exp_end
 
     return df
+
+
+def _calculate_non_overlapping_months(date_ranges: np.ndarray) -> float:
+    """Calculate total months covered by date ranges, counting overlaps only once.
+
+    Uses interval merging algorithm:
+    1. Sort intervals by start date
+    2. Merge overlapping intervals
+    3. Sum the lengths of merged intervals
+
+    Args:
+        date_ranges: Array of shape (n, 2) with start and end dates
+
+    Returns:
+        Total non-overlapping months
+    """
+    if len(date_ranges) == 0:
+        return 0.0
+
+    # Convert to list of [start, end] and sort by start date
+    # Convert numpy datetime64 to pandas Timestamp for consistent behavior
+    intervals = sorted(
+        [(pd.Timestamp(start), pd.Timestamp(end)) for start, end in date_ranges],
+        key=lambda x: x[0],
+    )
+
+    # Merge overlapping intervals
+    merged = []
+    current_start, current_end = intervals[0]
+
+    for start, end in intervals[1:]:
+        if start <= current_end:
+            # Overlapping - extend current interval
+            current_end = max(current_end, end)
+        else:
+            # Non-overlapping - save current and start new
+            merged.append([current_start, current_end])
+            current_start, current_end = start, end
+
+    # Don't forget the last interval
+    merged.append([current_start, current_end])
+
+    # Calculate total days across all merged intervals
+    # Now (end - start) returns pandas Timedelta which has .days attribute
+    total_days = sum((end - start).days for start, end in merged)
+
+    # Convert to months (using average days per month)
+    return total_days / 30.44
