@@ -40,3 +40,4 @@ docs_template/scripts/latex/*.png
 
 # local
 .vscode
+.DS_Store
