@@ -215,9 +215,9 @@ def recalculate_experience_at_start(df: pd.DataFrame) -> pd.DataFrame:
                 continue
 
             # Clip overlapping jobs to the current start date
-            # Use np.minimum to avoid lambda closure issue
-            previous_exps["clipped_end"] = np.minimum(
-                previous_exps["exp_end_date"].values, current_start
+            # Use pandas clip method which properly handles Timestamps
+            previous_exps["clipped_end"] = previous_exps["exp_end_date"].clip(
+                upper=current_start
             )
 
             # Calculate total months worked, accounting for overlaps
