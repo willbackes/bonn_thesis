@@ -173,7 +173,18 @@ def extract_education(limit: int | None = 10000, offset: int = 0) -> pd.DataFram
         start_date,
         end_date,
         university,
-        details
+        details,
+        linkedin_url,
+        case_degree_id,
+        case_degree_label,
+        case_matched_year,
+        case_university,
+        case_successfully_processed,
+        case_not_enough_info,
+        case_reason_for_failed_matching,
+        pct_case,
+        pct_subject,
+        pct_local
     FROM
         profile_education
     WHERE
