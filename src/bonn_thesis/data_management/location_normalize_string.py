@@ -10,7 +10,8 @@ def normalize_location_string(location: str) -> str:
 
     Args:
         location: Raw location string from LinkedIn or reference Bundesland data
-    Returns: Normalized location string.
+    Returns:
+        Normalized location string.
     """
     if pd.isna(location):
         return ""
