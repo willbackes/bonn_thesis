@@ -11,6 +11,11 @@ DOCUMENTS = ROOT.joinpath("documents").resolve()
 RAW_DATA = SRC.joinpath("data", "raw").resolve()
 RAW_DATA_BLD = BLD.joinpath("data", "raw").resolve()
 
+SOEP_DATA = ROOT.joinpath("..", "..").resolve().joinpath("datasets", "SOEP_data")
+
+MIN_DATA_YEAR = 2010
+MAX_DATA_YEAR = 2019
+
 TEMPLATE_GROUPS = ["marital_status", "highest_qualification"]
 
 config_database = {
