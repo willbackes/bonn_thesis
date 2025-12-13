@@ -75,6 +75,7 @@ platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
 
 [tool.pixi.dependencies]
 python = "~=3.13"
+fastparquet = "*"
 jupyterlab = "*"
 libgfortran = ">=14.2.0,<16"
 numpy = ">=2.2.6,<3"
@@ -93,6 +94,7 @@ pytest-xdist = "*"
 rapidfuzz = "*"
 statsmodels = "*"
 sqlalchemy = ">=2.0.41"
+tiktoken = "*"
 
 [tool.pixi.pypi-dependencies]
 bonn_thesis = {path = ".", editable = true}

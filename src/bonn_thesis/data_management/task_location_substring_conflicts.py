@@ -9,8 +9,8 @@ from bonn_thesis.data_management.location_substring_conflicts import (
 
 
 def task_identify_location_substring_conflicts(
-    data=BLD / "data" / "bundesland_reference.parquet",
-    produces=BLD / "data" / "substring_conflicts.parquet",
+    depends_on=BLD / "data" / "bundesland_data" / "bundesland_reference.parquet",
+    produces=BLD / "data" / "bundesland_data" / "substring_conflicts.parquet",
 ):
     """Identify cities that are substrings of other cities.
 
@@ -19,10 +19,10 @@ def task_identify_location_substring_conflicts(
     - "Burg" is a substring of "Marburg"
 
     Args:
-        data: Input bundesland reference data
+        depends_on: Input bundesland reference data
         produces: Output conflicts data
     """
-    reference_df = pd.read_parquet(data)
+    reference_df = pd.read_parquet(depends_on)
 
     conflicts_df = identify_substring_conflicts(reference_df)
 

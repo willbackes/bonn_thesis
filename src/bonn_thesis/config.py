@@ -3,12 +3,13 @@
 from pathlib import Path
 
 SRC = Path(__file__).parent.resolve()
+RAW_DATA = SRC.joinpath("data", "raw").resolve()
 ROOT = SRC.joinpath("..", "..").resolve()
 
 BLD = ROOT.joinpath("bld").resolve()
 DOCUMENTS = ROOT.joinpath("documents").resolve()
-
-RAW_DATA = SRC.joinpath("data", "raw").resolve()
+BUNDESLAND_DATA_BLD = BLD.joinpath("data", "bundesland_data").resolve()
+SOEP_DATA_BLD = BLD.joinpath("data", "soep_data").resolve()
 RAW_DATA_BLD = BLD.joinpath("data", "raw").resolve()
 
 SOEP_DATA = ROOT.joinpath("..", "..").resolve().joinpath("datasets", "SOEP_data")
@@ -98,3 +99,35 @@ CITY_BLACKLIST = {
     "regen",  # 5 chars - matches Regensburg (but "Regen" is a valid German city!)
     "goch",  # 4 chars - matches Gochsheim (but "Goch" is a valid German city!)
 }
+
+# OPENAI CONFIGURATION
+OPENAI_API_MODELS = {
+    "gpt-5-nano": {
+        "input_cost": 0.05,
+        "output_cost": 0.40,
+    },
+    "gpt-4.1-mini": {
+        "input_cost": 0.40,
+        "output_cost": 1.60,
+        "training_cost": 5.00,
+        "fine_tuned_input_cost": 0.80,
+        "fine_tuned_output_cost": 3.20,
+    },
+    "gpt-4.1-nano": {
+        "input_cost": 0.10,
+        "output_cost": 0.40,
+        "training_cost": 1.50,
+        "fine_tuned_input_cost": 0.20,
+        "fine_tuned_output_cost": 0.80,
+    },
+    "gpt-4o-mini": {
+        "input_cost": 0.15,
+        "output_cost": 0.60,
+        "training_cost": 3.00,
+        "fine_tuned_input_cost": 0.30,
+        "fine_tuned_output_cost": 1.20,
+    },
+}
+
+DEFAULT_OPENAI_MODEL = "gpt-4.1-nano"
+BATCH_API_DISCOUNT = 0.50
