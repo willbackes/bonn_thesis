@@ -170,7 +170,9 @@ def estimate_batch_costs(
 
     # Calculate costs
     token_counts = count_tokens(requests)
-    costs = calculate_costs(token_counts, model_pricing, apply_batch_discount)
+    costs = calculate_costs(
+        token_counts, model_pricing, apply_batch_discount=apply_batch_discount
+    )
     metadata = extract_metadata(experiment_config, jsonl_path, reference_data_path)
     row_data = create_metadata_row(metadata, token_counts, costs)
     updated_df = update_metadata_df(existing_metadata_df, row_data)

@@ -1,0 +1,27 @@
+---
+description: Basic wage estimation prompt - asks for numeric estimate based on demographic
+  and occupational characteristics
+
+# System message (optional)
+system_message: You are an expert income estimator. Estimate yearly gross labor income
+  in euros based on worker characteristics. Provide a single number as output.
+
+# Main prompt template with placeholders
+prompt_template: |
+  Based on the following worker characteristics, estimate the yearly gross
+  labor income in euros.
+  Characteristics:
+  Year: {syear}
+  Occupation: {isco_3_name}
+  Education: {education_grouped}
+  Sex: {sex_en}
+  Federal State: {state_en}
+  Experience: {pgexpft_mean}
+# Variables required in the template (for validation)
+required_variables:
+  - syear
+  - isco_3_name
+  - education_grouped
+  - sex_en
+  - state_en
+  - pgexpft_mean

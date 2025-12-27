@@ -20,7 +20,12 @@ def format_prompt(row, prompt_config):
     format_dict = {}
     for var in required_vars:
         if var in row.index:
-            format_dict[var] = row[var]
+            value = row[var]
+            # Format numeric values to 2 decimal places
+            if isinstance(value, int | float) and var == "pgexpft_mean":
+                format_dict[var] = f"{value:.2f}"
+            else:
+                format_dict[var] = value
         else:
             msg = f"Required variable '{var}' not found in data"
             raise ValueError(msg)

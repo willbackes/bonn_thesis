@@ -20,27 +20,27 @@ dependencies = {
     / "openai_processing"
     / "configs"
     / "data_agg"
-    / "soep_agg_01.yaml",
+    / "soep_agg_13.yaml",
     "partition_config": SRC
     / "openai_processing"
     / "configs"
     / "data_partition"
-    / "soep_partition_01.yaml",
+    / "soep_partition_13.yaml",
     "experiment_config": SRC
     / "openai_processing"
     / "configs"
     / "experiments"
-    / "wage_soep_exp_01.yaml",
+    / "wage_soep_exp_13.yaml",
     "prompt_config": SRC
     / "openai_processing"
     / "configs"
     / "prompts"
-    / "prompts_wage_soep_01.yaml",
+    / "prompts_wage_soep_13.yaml",
 }
 
 products = {
-    "jsonl": SOEP_DATA_BLD / "openai_inputs" / "wage_soep_exp_01.jsonl",
-    "reference_data": SOEP_DATA_BLD / "aggregated" / "soep_agg_part_01.parquet",
+    "jsonl": SOEP_DATA_BLD / "openai_inputs" / "wage_soep_exp_13.jsonl",
+    "reference_data": SOEP_DATA_BLD / "aggregated" / "soep_agg_part_13.parquet",
 }
 
 

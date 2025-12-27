@@ -1,0 +1,21 @@
+---
+description: Partition n_obs_min>=10
+# Filter by specific column values
+filters:
+  # Year filter
+  syear: null
+  isco_3_name: null
+  education_grouped: null
+  state_en: null
+  sex_en: null
+
+  # Minimum observations per group
+  n_obs_min: 10
+# Sort output (optional)
+sort_by: null
+
+# Limit number of rows (optional, for testing)
+max_rows: null  # Set to a number like 100 for very small test sets
+
+# Reset index after partitioning
+reset_index: true

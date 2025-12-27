@@ -82,8 +82,21 @@ def perform_aggregation(df, config):
     Returns:
         pd.DataFrame: Aggregated DataFrame
     """
-    group_by = config["group_by"]
-    aggregations = config["aggregations"]
+    group_by = config.get("group_by", [])
+    aggregations = config.get("aggregations", {})
+
+    # If no grouping or no aggregations, return filtered data with n_obs=1
+    if not group_by or not aggregations:
+        result_df = df.copy()
+        result_df["n_obs"] = 1
+
+        # Apply column renaming if specified
+        column_rename = config.get("column_rename", {})
+        if column_rename:
+            result_df = result_df.rename(columns=column_rename)
+
+        return result_df
+
     count_column = config["count_column"]
     options = config.get("options", {})
 

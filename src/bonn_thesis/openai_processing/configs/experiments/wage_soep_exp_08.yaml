@@ -1,0 +1,20 @@
+---
+experiment_id: wage_soep_exp_08
+description: Test SOEP yearly wage estimation (include experience, different prompt,
+  gpt-4o-mini) - small subset with minimum 10 observations
+
+# Reference to other configs
+aggregation_config: data_agg/soep_agg_08.yaml
+partition_config: data_partition/soep_partition_08.yaml
+prompt_template: prompts/prompts_wage_soep_08.txt
+
+# OpenAI API settings
+model: gpt-4o-mini
+temperature: 0.7
+max_tokens: 20
+
+# Batch identification
+batch_name: wage_soep_exp_08
+
+# Output settings
+output_format: numeric
