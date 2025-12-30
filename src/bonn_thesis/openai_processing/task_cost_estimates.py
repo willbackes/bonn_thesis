@@ -10,13 +10,13 @@ from bonn_thesis.config import SOEP_DATA_BLD, SRC
 from bonn_thesis.openai_processing.soep_cost_estimates import estimate_batch_costs
 
 dependencies = {
-    "jsonl": SOEP_DATA_BLD / "openai_inputs" / "wage_soep_exp_13.jsonl",
+    "jsonl": SOEP_DATA_BLD / "openai_inputs" / "wage_soep_exp_16.jsonl",
     "experiment_config": SRC
     / "openai_processing"
     / "configs"
     / "experiments"
-    / "wage_soep_exp_13.yaml",
-    "reference_data": SOEP_DATA_BLD / "aggregated" / "soep_agg_part_13.parquet",
+    / "wage_soep_exp_16.yaml",
+    "reference_data": SOEP_DATA_BLD / "aggregated" / "soep_agg_part_16.parquet",
 }
 
 

@@ -42,11 +42,12 @@ repos:
       # Run the linter.
       - id: ruff
         types_or: [python, jupyter]
-        args:
-          - --fix
+        args: [--fix]
+        exclude: \.ipynb$|src/bonn_thesis/openai_processing/soep_batch_manager\.py
       # Run the formatter.
       - id: ruff-format
         types_or: [python, jupyter]
+        exclude: \.ipynb$|src/bonn_thesis/openai_processing/soep_batch_manager\.py
   - repo: https://github.com/kynan/nbstripout
     rev: 0.8.1
     hooks:
@@ -54,11 +55,15 @@ repos:
         args:
           - --extra-keys
           - metadata.kernelspec metadata.language_info.version metadata.vscode
+        exclude: \.ipynb$
   - repo: https://github.com/executablebooks/mdformat
     rev: 0.7.22
     hooks:
       - id: mdformat
-        additional_dependencies: [mdformat-gfm, mdformat-gfm-alerts, mdformat-ruff]
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-gfm-alerts
+          - mdformat-ruff
         args: [--wrap, '88']
         files: (README\.md)
   - repo: https://github.com/executablebooks/mdformat

@@ -1,0 +1,49 @@
+---
+description: Base aggregation for wage estimation
+# Grouping variables
+group_by:
+  - syear
+  - isco_3_name
+  - education_grouped
+  - sex_en
+  - state_en
+# Aggregation functions for each variable
+aggregations:
+  pglabgro: [mean, median]
+  pglabnet: [mean, median]
+  pgexpft:
+    - mean
+    - median
+# Count observations per group
+count_column: pglabgro
+# Filters to apply before aggregation
+pre_aggregation_filters:
+  syear:
+    min: 2010
+    max: 2019  # inclusive
+  remove_outliers: true  # remove extreme/inconsistent observations
+  # Exclude missing/invalid values
+  exclude_values:
+    pgisco08:
+      - '[-2] trifft nicht zu'
+      - '[-8] Frage in diesem Jahr nicht Teil des Frageprograms'
+      - '[-1] keine Angabe'
+    pgisced11: ['[-1] keine Angabe', '[-2] trifft nicht zu', '[0] in school']
+    sex: ['[-3] nicht valide']
+    pgexpft:
+      - '[-1] keine Angabe'
+
+  # Require at least one wage/experience variable to be non-null
+  require_any_not_null:
+    - pglabgro
+    - pglabnet
+    - pgexpft
+# Additional computed columns after aggregation (optional)
+derived_columns:
+  taxed_income:
+    formula: (1 - pglabnet_median / pglabgro_median) * 100
+    description: Tax rate as percentage
+# Options
+options:
+  observed_only: true  # For categorical groupby (observed=True in pandas)
+  reset_index: true  # Reset index after aggregation

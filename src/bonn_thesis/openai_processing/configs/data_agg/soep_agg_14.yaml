@@ -1,0 +1,43 @@
+---
+description: Individual level data
+# Grouping variables
+group_by: []
+
+# Aggregation functions for each variable
+aggregations: {}
+
+# Count observations per group
+count_column: pglabgro
+# Filters to apply before aggregation
+pre_aggregation_filters:
+  syear:
+    min: 2010
+    max: 2019  # inclusive
+  remove_outliers: true  # remove extreme/inconsistent observations
+  # Exclude missing/invalid values
+  exclude_values:
+    pgisco08:
+      - '[-2] trifft nicht zu'
+      - '[-8] Frage in diesem Jahr nicht Teil des Frageprograms'
+      - '[-1] keine Angabe'
+    pgisced11: ['[-1] keine Angabe', '[-2] trifft nicht zu', '[0] in school']
+    sex: ['[-3] nicht valide']
+    pgexpft:
+      - '[-1] keine Angabe'
+
+  # Require at least one wage/experience variable to be non-null
+  require_any_not_null:
+    - pglabgro
+    - pglabnet
+    - pgexpft
+# Column renaming to match aggregated format (for compatibility with analysis)
+column_rename:
+  pglabgro: pglabgro_mean
+  pglabnet: pglabnet_mean
+  pgexpft: pgexpft_mean
+# Additional computed columns after aggregation (optional)
+derived_columns: {}
+# Options
+options:
+  observed_only: true  # For categorical groupby (observed=True in pandas)
+  reset_index: true  # Reset index after aggregation

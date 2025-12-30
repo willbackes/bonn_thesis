@@ -3527,8 +3527,8 @@ packages:
   timestamp: 1737382993425
 - pypi: .
   name: bonn-thesis
-  version: 0.1.dev27+g24d6b9261.d20251210
-  sha256: e0df89779285eddd0e2993a89b4b0cb356dbc9dbcad34b4ae3d3f25d7111c1c4
+  version: 0.1.dev29+gab42cde27.d20251227
+  sha256: 6ddd6552876f077353481cb7893b0689c9e68bcf8bd8c778d46bd8f4e68ada27
   requires_python: '>=3.11'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/linux-64/brotli-python-1.2.0-py313h09d1b84_0.conda
