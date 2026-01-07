@@ -11,7 +11,7 @@ from bonn_thesis.data_management.location_normalize_string import (
 
 
 def clean_location_data(
-    location: pd.DataFrame, bundesland_reference: pd.DataFrame
+    data: pd.DataFrame, bundesland_reference: pd.DataFrame
 ) -> pd.DataFrame:
     """Add federal state information to experience DataFrame.
 
@@ -19,7 +19,7 @@ def clean_location_data(
     a hierarchical matching strategy. Creates three new columns in the DataFrame.
 
     Args:
-        location: DataFrame with 'exp_location' column
+        data: DataFrame with 'exp_location' column
         bundesland_reference: DataFrame with reference location data
     Returns:
         DataFrame with additional columns:
@@ -27,21 +27,14 @@ def clean_location_data(
         - 'matched_city': Matched city name (or None)
         - 'match_method': How the match was made (matching strategy used)
     """
-    clean_location = pd.DataFrame()
-
-    clean_location["exp_id"] = location["exp_id"].astype(pd.Int32Dtype())
-    clean_location["prof_id"] = location["prof_id"].astype(pd.Int32Dtype())
-    clean_location["comp_id"] = location["comp_id"].astype(pd.Int32Dtype())
-    clean_location["industry_id"] = location["industry_id"].astype(pd.Int32Dtype())
-    clean_location["job_title_id"] = location["job_title_id"].astype(pd.Int32Dtype())
-    clean_location["exp_location"] = location["exp_location"]
+    clean_location = data.copy()
 
     city_lookup = _build_city_lookup(bundesland_reference)
     state_en_lookup, state_de_lookup, state_en_list, state_de_list = (
         _build_state_lookups(bundesland_reference)
     )
 
-    results = location["exp_location"].apply(
+    results = data["exp_location"].apply(
         lambda x: identify_german_federal_state(
             x,
             city_lookup,
