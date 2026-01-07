@@ -2,6 +2,14 @@
 
 import numpy as np
 import pandas as pd
+from pandas.errors import OutOfBoundsDatetime
+
+from bonn_thesis.config import (
+    MAX_DURATION_MONTHS,
+    MAX_REASONABLE_EXP,
+    MAX_SAFE_DATE,
+    MIN_SAFE_DATE,
+)
 
 
 def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
@@ -15,17 +23,57 @@ def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
     """
     clean_df = pd.DataFrame()
 
+    # Add ID and job-related columns
+    _add_id_columns(clean_df, experience_df)
+    _add_job_columns(clean_df, experience_df)
+
+    # Add experience and date columns, validate dates
+    _add_experience_columns(clean_df, experience_df)
+    _validate_dates(clean_df)
+    _flag_out_of_bounds_profiles(clean_df)
+
+    # Add profile and company columns
+    _add_profile_columns(clean_df, experience_df)
+    _add_company_columns(clean_df, experience_df)
+
+    # Apply cleaning to valid profiles
+    clean_mask = ~clean_df["out_of_bounds"]
+
+    if clean_mask.sum() > 0:
+        # Sort and clean dates efficiently (only for clean profiles)
+        clean_df.loc[clean_mask] = clean_dates(clean_df[clean_mask].copy())
+
+        # Recalculate duration based on cleaned dates
+        clean_df.loc[clean_mask] = calculate_duration(clean_df[clean_mask].copy())
+
+        # Recalculate experience_at_start based on cleaned dates
+        clean_df.loc[clean_mask] = recalculate_experience_at_start(
+            clean_df[clean_mask].copy()
+        )
+    return clean_df
+
+
+def _add_id_columns(clean_df: pd.DataFrame, experience_df: pd.DataFrame) -> None:
+    """Add ID columns to clean dataframe."""
     clean_df["exp_id"] = experience_df["exp_id"].astype(pd.Int32Dtype())
     clean_df["prof_id"] = experience_df["prof_id"].astype(pd.Int32Dtype())
     clean_df["comp_id"] = experience_df["comp_id"].astype(pd.Int32Dtype())
     clean_df["industry_id"] = experience_df["industry_id"].astype(pd.Int32Dtype())
     clean_df["job_title_id"] = experience_df["job_title_id"].astype(pd.Int32Dtype())
 
+
+def _add_job_columns(clean_df: pd.DataFrame, experience_df: pd.DataFrame) -> None:
+    """Add job-related text columns to clean dataframe."""
     clean_df["job_title"] = experience_df["job_title"]
     clean_df["job_title_cleaned"] = experience_df["job_title_cleaned"]
     clean_df["job_title_standard"] = experience_df["job_title_standard"]
     clean_df["exp_description"] = experience_df["exp_description"]
 
+
+def _add_experience_columns(
+    clean_df: pd.DataFrame, experience_df: pd.DataFrame
+) -> None:
+    """Add experience and date columns to clean dataframe."""
     clean_df["experience_at_start"] = experience_df["total_experience"].astype(
         pd.Float32Dtype()
     )
@@ -41,6 +89,35 @@ def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
         pd.BooleanDtype()
     )
 
+
+def _validate_dates(clean_df: pd.DataFrame) -> None:
+    """Validate and clean date ranges."""
+    invalid_start = (clean_df["exp_start_date"] < MIN_SAFE_DATE) | (
+        clean_df["exp_start_date"] > MAX_SAFE_DATE
+    )
+    invalid_end = (clean_df["exp_end_date"] < MIN_SAFE_DATE) | (
+        clean_df["exp_end_date"] > MAX_SAFE_DATE
+    )
+
+    clean_df.loc[invalid_start, "exp_start_date"] = pd.NaT
+    clean_df.loc[invalid_end, "exp_end_date"] = pd.NaT
+
+
+def _flag_out_of_bounds_profiles(clean_df: pd.DataFrame) -> None:
+    """Flag profiles with out-of-bounds experience values."""
+    out_of_bounds = (
+        (clean_df["experience_at_start"] > MAX_REASONABLE_EXP)
+        | (clean_df["experience_at_start"] < 0)
+        | (clean_df["duration"] > MAX_REASONABLE_EXP)
+        | (clean_df["duration"] < -1)
+    )
+
+    out_of_bounds_prof = clean_df.loc[out_of_bounds, "prof_id"].unique()
+    clean_df["out_of_bounds"] = clean_df["prof_id"].isin(out_of_bounds_prof)
+
+
+def _add_profile_columns(clean_df: pd.DataFrame, experience_df: pd.DataFrame) -> None:
+    """Add profile-related columns to clean dataframe."""
     clean_df["hierarchy"] = experience_df["hierarchy"].astype(pd.Int8Dtype())
     clean_df["hierarchy_name"] = experience_df["hierarchy_name"].astype(
         pd.CategoricalDtype()
@@ -58,6 +135,9 @@ def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
         experience_df["crawling_date"], errors="coerce"
     )
 
+
+def _add_company_columns(clean_df: pd.DataFrame, experience_df: pd.DataFrame) -> None:
+    """Add company-related columns to clean dataframe."""
     clean_df["exp_company"] = experience_df["exp_company"]
     clean_df["company"] = experience_df["company"].where(
         experience_df["company"] != "deutschsprachige Theater", pd.NA
@@ -77,17 +157,6 @@ def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
     clean_df["followers_on_linkedin"] = experience_df["followers_on_linkedin"].astype(
         pd.Int64Dtype()
     )
-
-    # Sort and clean dates efficiently
-    clean_df = clean_dates(clean_df)
-
-    # Recalculate duration based on cleaned dates
-    clean_df = calculate_duration(clean_df)
-
-    # Recalculate experience_at_start based on cleaned dates
-    clean_df = recalculate_experience_at_start(clean_df)
-
-    return clean_df
 
 
 def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
@@ -130,7 +199,7 @@ def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
         "prev_valid_end_exp",
         "next_valid_start_exp",
         "position_in_group",
-        # "is_overlapping_reference",
+        "is_overlapping_reference",
     ]
     result_df = result_df.drop(
         columns=[col for col in cols_to_drop if col in result_df.columns]
@@ -169,6 +238,26 @@ def calculate_duration(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return df
+
+
+def _safe_date_offset(
+    base_date: pd.Timestamp, months: int, direction: str = "forward"
+) -> pd.Timestamp:
+    """Safely add/subtract months from a date, avoiding overflow."""
+    months = int(np.clip(months, -MAX_DURATION_MONTHS, MAX_DURATION_MONTHS))
+
+    try:
+        if direction == "forward":
+            new_date = base_date + pd.DateOffset(months=months)
+        else:
+            new_date = base_date - pd.DateOffset(months=months)
+
+        if new_date < MIN_SAFE_DATE or new_date > MAX_SAFE_DATE:
+            return pd.NaT
+        else:
+            return new_date
+    except (OverflowError, OutOfBoundsDatetime):
+        return pd.NaT
 
 
 def recalculate_experience_at_start(df: pd.DataFrame) -> pd.DataFrame:
@@ -465,7 +554,9 @@ def _previous_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
         prev_end = pd.to_datetime(profile_prev.max())
 
         for idx in sorted_group.index:
-            exp_start = prev_end + pd.DateOffset(months=1)
+            exp_start = _safe_date_offset(prev_end, 1, "forward")
+            if pd.isna(exp_start):
+                continue
 
             exp_diff = (
                 df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
@@ -475,7 +566,9 @@ def _previous_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
             else:
                 duration_months = 3
 
-            exp_end = exp_start + pd.DateOffset(months=duration_months)
+            exp_end = _safe_date_offset(exp_start, duration_months, "forward")
+            if pd.isna(exp_end):
+                continue
 
             df.loc[idx, "exp_start_date"] = exp_start
             df.loc[idx, "exp_end_date"] = exp_end
@@ -502,7 +595,9 @@ def _next_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
         next_start = pd.to_datetime(profile_next.min())
 
         for idx in sorted_group.index:
-            exp_end = next_start - pd.DateOffset(months=1)
+            exp_end = _safe_date_offset(next_start, 1, "backward")
+            if pd.isna(exp_end):
+                continue
 
             exp_diff = (
                 df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
@@ -512,7 +607,9 @@ def _next_only(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
             else:
                 duration_months = 3
 
-            exp_start = exp_end - pd.DateOffset(months=duration_months)
+            exp_start = _safe_date_offset(exp_end, duration_months, "backward")
+            if pd.isna(exp_start):
+                continue
 
             df.loc[idx, "exp_start_date"] = exp_start
             df.loc[idx, "exp_end_date"] = exp_end
@@ -540,23 +637,24 @@ def _both_no_inactive_period(df: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
         total_exp_span = next_valid_start_exp - prev_valid_end_exp
 
         for idx in sorted_group.index:
-            # Start date: 1 month after previous end
-            exp_start = prev_end + pd.DateOffset(months=1)
+            exp_start = _safe_date_offset(prev_end, 1, "forward")
+            if pd.isna(exp_start):
+                continue
 
-            # Duration based on proportional experience
             exp_diff = (
                 df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
             )
 
             if pd.notna(exp_diff) and exp_diff > 0 and total_exp_span > 0:
-                # Proportional allocation
                 proportion = exp_diff / total_exp_span
                 available_months = float(df.loc[idx, "diff_date"])
                 duration_months = max(3, int(available_months * proportion))
             else:
-                duration_months = 3  # Default minimum for zero experience
+                duration_months = 3
 
-            exp_end = exp_start + pd.DateOffset(months=duration_months)
+            exp_end = _safe_date_offset(exp_start, duration_months, "forward")
+            if pd.isna(exp_end):
+                continue
 
             # Update dataframe
             df.loc[idx, "exp_start_date"] = exp_start
@@ -593,28 +691,32 @@ def _both_with_inactive_period(df: pd.DataFrame, mask: pd.Series) -> pd.DataFram
             inactive_per_transition = 0
 
         for i, idx in enumerate(sorted_group.index):
-            # Start date: 1 month after previous end
-            exp_start = prev_end + pd.DateOffset(months=1)
+            exp_start = _safe_date_offset(prev_end, 1, "forward")
+            if pd.isna(exp_start):
+                continue
 
-            # Duration based on experience difference
             exp_diff = (
                 df.loc[idx, "experience_at_end"] - df.loc[idx, "experience_at_start"]
             )
             if pd.notna(exp_diff) and exp_diff > 0:
                 duration_months = int(exp_diff * 12)
             else:
-                duration_months = 3  # Default minimum
+                duration_months = 3
 
-            exp_end = exp_start + pd.DateOffset(months=duration_months)
+            exp_end = _safe_date_offset(exp_start, duration_months, "forward")
+            if pd.isna(exp_end):
+                continue
 
-            # Update dataframe
             df.loc[idx, "exp_start_date"] = exp_start
             df.loc[idx, "exp_end_date"] = exp_end
             df.loc[idx, "date_reconstruction_method"] = "both_with_inactive"
 
-            # Update for next iteration (add inactive period if not last experience)
             if i < n - 1:
-                prev_end = exp_end + pd.DateOffset(months=int(inactive_per_transition))
+                prev_end = _safe_date_offset(
+                    exp_end, int(inactive_per_transition), "forward"
+                )
+                if pd.isna(prev_end):
+                    prev_end = exp_end
             else:
                 prev_end = exp_end
 

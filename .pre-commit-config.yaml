@@ -43,11 +43,11 @@ repos:
       - id: ruff
         types_or: [python, jupyter]
         args: [--fix]
-        exclude: \.ipynb$|src/bonn_thesis/openai_processing/soep_batch_manager\.py
+        exclude: \.ipynb$|src/bonn_thesis/openai_processing/soep_batch_manager\.py|src/bonn_thesis/data_management/clean_experience_data\.py
       # Run the formatter.
       - id: ruff-format
         types_or: [python, jupyter]
-        exclude: \.ipynb$|src/bonn_thesis/openai_processing/soep_batch_manager\.py
+        exclude: \.ipynb$|src/bonn_thesis/openai_processing/soep_batch_manager\.py|src/bonn_thesis/data_management/clean_experience_data\.py
   - repo: https://github.com/kynan/nbstripout
     rev: 0.8.1
     hooks:
