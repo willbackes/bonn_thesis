@@ -1,0 +1,31 @@
+---
+fine_tune_id: isco_classifier_03
+description: Fine-tune GPT model to classify job titles using ISCO-08 3-digit taxonomy
+
+# Data source
+data_file: isco_esco_occupations_taxonomy.xlsx
+input_column: ISCO_OCCUPATION  # The job title column
+output_column: ISCO_3_DIGIT  # The classification target
+
+# OpenAI fine-tuning settings
+model: gpt-4o-mini-2024-07-18
+n_epochs: 3  # Number of training epochs
+batch_size: auto  # Let OpenAI determine optimal batch size
+learning_rate_multiplier: auto  # Let OpenAI determine optimal learning rate
+
+# Prompt configuration
+system_message: You are a job classifier. Given a job title, classify the job according
+  to the ISCO-08 taxonomy at the 3-digit level.
+
+# Data split (if needed for validation)
+train_test_split: 0.8  # 80% training, 20% validation
+random_seed: 42
+
+# Output settings
+output_dir: openai_fine_tune
+metadata_file: fine_tune_metadata.csv
+training_file_name: isco_training_data_03.jsonl
+validation_file_name: isco_validation_data_03.jsonl
+
+# Suffix for the fine-tuned model name
+model_suffix: isco-classifier-v2

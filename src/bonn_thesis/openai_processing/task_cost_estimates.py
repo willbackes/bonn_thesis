@@ -1,4 +1,4 @@
-"""Pytask for estimating costs of OpenAI batch processing."""
+"""Pytask for estimating costs of OpenAI batch processing and fine-tuning."""
 
 import json
 from pathlib import Path
@@ -6,7 +6,8 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from bonn_thesis.config import SOEP_DATA_BLD, SRC
+from bonn_thesis.config import OCCUPATION_DATA_BLD, SOEP_DATA_BLD, SRC
+from bonn_thesis.openai_processing.isco_cost_estimates import estimate_fine_tune_costs
 from bonn_thesis.openai_processing.soep_cost_estimates import estimate_batch_costs
 
 dependencies = {
@@ -63,3 +64,62 @@ def task_estimate_costs_wage_soep_exp(
     # Save updated metadata
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     updated_df.to_csv(metadata_path, index=False)
+
+
+isco_dependencies = {
+    "config": SRC
+    / "openai_processing"
+    / "configs"
+    / "fine_tune"
+    / "isco_classifier_03.yaml",
+    "training_file": OCCUPATION_DATA_BLD
+    / "openai_fine_tune"
+    / "isco_training_data_03.jsonl",
+    "validation_file": OCCUPATION_DATA_BLD
+    / "openai_fine_tune"
+    / "isco_validation_data_03.jsonl",
+}
+
+
+def task_estimate_costs_isco_fine_tune(
+    depends_on=isco_dependencies,
+    produces=OCCUPATION_DATA_BLD / "fine_tune_metadata.csv",
+):
+    """Estimate costs for ISCO fine-tuning and create metadata.
+
+    This task:
+    1. Loads fine-tuning configuration
+    2. Counts tokens in training and validation files
+    3. Estimates training and inference costs
+    4. Creates metadata CSV with all information
+    """
+    # Load configuration
+    with Path(depends_on["config"]).open() as f:
+        config = yaml.safe_load(f)
+
+    training_file = Path(depends_on["training_file"])
+    validation_file = Path(depends_on["validation_file"])
+
+    # Estimate costs
+    cost_estimates = estimate_fine_tune_costs(
+        training_jsonl_path=training_file,
+        validation_jsonl_path=validation_file if validation_file.exists() else None,
+        config=config,
+        n_predictions_to_estimate=1000,
+    )
+
+    # Add additional metadata fields from config
+    metadata = {
+        **cost_estimates,
+        "description": config["description"],
+        "training_file": str(training_file),
+        "validation_file": str(validation_file) if validation_file.exists() else None,
+        "system_message": config["system_message"],
+        "model_suffix": config.get("model_suffix", ""),
+    }
+
+    # Create metadata DataFrame and save
+    df = pd.DataFrame([metadata])
+    output_path = Path(produces)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output_path, index=False)

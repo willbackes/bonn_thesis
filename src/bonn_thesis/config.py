@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pandas as pd
+
 SRC = Path(__file__).parent.resolve()
 RAW_DATA = SRC.joinpath("data", "raw").resolve()
 ROOT = SRC.joinpath("..", "..").resolve()
@@ -9,11 +11,17 @@ ROOT = SRC.joinpath("..", "..").resolve()
 BLD = ROOT.joinpath("bld").resolve()
 DOCUMENTS = ROOT.joinpath("documents").resolve()
 BUNDESLAND_DATA_BLD = BLD.joinpath("data", "bundesland_data").resolve()
+EXPERIENCE_DATA_BLD = BLD.joinpath("data", "experience_data").resolve()
 SOEP_DATA_BLD = BLD.joinpath("data", "soep_data").resolve()
+OCCUPATION_DATA_BLD = BLD.joinpath("data", "occupation_data").resolve()
 RAW_DATA_BLD = BLD.joinpath("data", "raw").resolve()
 
 SOEP_DATA = ROOT.joinpath("..", "..").resolve().joinpath("datasets", "SOEP_data")
 
+MAX_REASONABLE_EXP = 50  # years - maximum reasonable career span
+MIN_SAFE_DATE = pd.Timestamp("1950-01-01")
+MAX_SAFE_DATE = pd.Timestamp("2030-12-31")
+MAX_DURATION_MONTHS = 600  # 50 years in months
 MIN_DATA_YEAR = 2010
 MAX_DATA_YEAR = 2019
 
@@ -120,7 +128,21 @@ OPENAI_API_MODELS = {
         "fine_tuned_input_cost": 0.20,
         "fine_tuned_output_cost": 0.80,
     },
+    "gpt-4.1-nano-2025-04-14": {
+        "input_cost": 0.10,
+        "output_cost": 0.40,
+        "training_cost": 1.50,
+        "fine_tuned_input_cost": 0.20,
+        "fine_tuned_output_cost": 0.80,
+    },
     "gpt-4o-mini": {
+        "input_cost": 0.15,
+        "output_cost": 0.60,
+        "training_cost": 3.00,
+        "fine_tuned_input_cost": 0.30,
+        "fine_tuned_output_cost": 1.20,
+    },
+    "gpt-4o-mini-2024-07-18": {
         "input_cost": 0.15,
         "output_cost": 0.60,
         "training_cost": 3.00,
