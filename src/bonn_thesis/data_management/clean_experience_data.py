@@ -30,26 +30,19 @@ def clean_experience_data(experience_df: pd.DataFrame) -> pd.DataFrame:
     # Add experience and date columns, validate dates
     _add_experience_columns(clean_df, experience_df)
     _validate_dates(clean_df)
-    _flag_out_of_bounds_profiles(clean_df)
 
     # Add profile and company columns
     _add_profile_columns(clean_df, experience_df)
     _add_company_columns(clean_df, experience_df)
 
-    # Apply cleaning to valid profiles
-    clean_mask = ~clean_df["out_of_bounds"]
+    clean_df = clean_dates(clean_df)
 
-    if clean_mask.sum() > 0:
-        # Sort and clean dates efficiently (only for clean profiles)
-        clean_df.loc[clean_mask] = clean_dates(clean_df[clean_mask].copy())
+    # Recalculate duration based on cleaned dates
+    clean_df = calculate_duration(clean_df)
 
-        # Recalculate duration based on cleaned dates
-        clean_df.loc[clean_mask] = calculate_duration(clean_df[clean_mask].copy())
+    # Recalculate experience_at_start based on cleaned dates
+    clean_df = recalculate_experience_at_start(clean_df)
 
-        # Recalculate experience_at_start based on cleaned dates
-        clean_df.loc[clean_mask] = recalculate_experience_at_start(
-            clean_df[clean_mask].copy()
-        )
     return clean_df
 
 
@@ -101,19 +94,6 @@ def _validate_dates(clean_df: pd.DataFrame) -> None:
 
     clean_df.loc[invalid_start, "exp_start_date"] = pd.NaT
     clean_df.loc[invalid_end, "exp_end_date"] = pd.NaT
-
-
-def _flag_out_of_bounds_profiles(clean_df: pd.DataFrame) -> None:
-    """Flag profiles with out-of-bounds experience values."""
-    out_of_bounds = (
-        (clean_df["experience_at_start"] > MAX_REASONABLE_EXP)
-        | (clean_df["experience_at_start"] < 0)
-        | (clean_df["duration"] > MAX_REASONABLE_EXP)
-        | (clean_df["duration"] < -1)
-    )
-
-    out_of_bounds_prof = clean_df.loc[out_of_bounds, "prof_id"].unique()
-    clean_df["out_of_bounds"] = clean_df["prof_id"].isin(out_of_bounds_prof)
 
 
 def _add_profile_columns(clean_df: pd.DataFrame, experience_df: pd.DataFrame) -> None:
@@ -199,7 +179,6 @@ def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
         "prev_valid_end_exp",
         "next_valid_start_exp",
         "position_in_group",
-        "is_overlapping_reference",
     ]
     result_df = result_df.drop(
         columns=[col for col in cols_to_drop if col in result_df.columns]
