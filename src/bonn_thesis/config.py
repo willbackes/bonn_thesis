@@ -110,6 +110,16 @@ CITY_BLACKLIST = {
     "goch",  # 4 chars - matches Gochsheim (but "Goch" is a valid German city!)
 }
 
+EDUCATION_MAPPING = {
+    "Bachelor": "Bachelor degree",
+    "Master": "Master or Doctoral degree",
+    "Diplom": "Master or Doctoral degree",
+    "Promotion": "Master or Doctoral degree",
+    "Staatexamen": "Master or Doctoral degree",
+    "Magister": "Master or Doctoral degree",
+    "Integrierter Master": "Master or Doctoral degree",
+}
+
 # OPENAI CONFIGURATION
 OPENAI_API_MODELS = {
     "gpt-5-nano": {

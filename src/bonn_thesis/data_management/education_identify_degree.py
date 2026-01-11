@@ -20,6 +20,7 @@ def clean_degree_type(series: pd.Series) -> pd.Series:
         .str.replace("ç", "c", regex=False)
         .str.replace("ñ", "n", regex=False)
         .str.replace("ã", "a", regex=False)
+        .str.replace("á", "a", regex=False)
         .str.replace(r"\s+", " ", regex=True)
         .str.replace(r"\.", "", regex=True)
         .str.replace(r"[^\w\s-]", "", regex=True)
