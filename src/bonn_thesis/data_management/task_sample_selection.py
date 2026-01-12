@@ -33,8 +33,11 @@ for exp_file in _experience_files:
 
     @task(
         id=suffix,
-        kwargs={"exp_file": exp_file, "edu_file": edu_file},
-        produces=batch_produces,
+        kwargs={
+            "exp_file": exp_file,
+            "edu_file": edu_file,
+            "produces": batch_produces,
+        },
     )
     def task_sample_selection(
         exp_file: Path,
