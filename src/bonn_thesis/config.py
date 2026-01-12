@@ -14,8 +14,9 @@ BUNDESLAND_DATA_BLD = BLD.joinpath("data", "bundesland_data").resolve()
 EDUCATION_DATA_BLD = BLD.joinpath("data", "education_data").resolve()
 EXPERIENCE_DATA_BLD = BLD.joinpath("data", "experience_data").resolve()
 LOCATION_DATA_BLD = BLD.joinpath("data", "location_data").resolve()
-SOEP_DATA_BLD = BLD.joinpath("data", "soep_data").resolve()
 OCCUPATION_DATA_BLD = BLD.joinpath("data", "occupation_data").resolve()
+SAMPLE_SELECTION_BLD = BLD.joinpath("data", "sample_selection").resolve()
+SOEP_DATA_BLD = BLD.joinpath("data", "soep_data").resolve()
 RAW_DATA_BLD = BLD.joinpath("data", "raw").resolve()
 
 SOEP_DATA = ROOT.joinpath("..", "..").resolve().joinpath("datasets", "SOEP_data")
@@ -26,6 +27,10 @@ MAX_SAFE_DATE = pd.Timestamp("2030-12-31")
 MAX_DURATION_MONTHS = 600  # 50 years in months
 MIN_DATA_YEAR = 2010
 MAX_DATA_YEAR = 2019
+
+# Sample selection filter constants
+EXCLUDED_COMP_ID = 2
+EXCLUDED_MIN_SIZE = 2
 
 TEMPLATE_GROUPS = ["marital_status", "highest_qualification"]
 
@@ -118,6 +123,13 @@ EDUCATION_MAPPING = {
     "Staatexamen": "Master or Doctoral degree",
     "Magister": "Master or Doctoral degree",
     "Integrierter Master": "Master or Doctoral degree",
+}
+
+EDUCATION_HIERARCHY = {
+    "Secondary education": 1,
+    "Post-secondary non-tertiary or Short-cycle tertiary education": 2,
+    "Bachelor degree": 3,
+    "Master or Doctoral degree": 4,
 }
 
 # OPENAI CONFIGURATION
