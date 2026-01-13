@@ -55,11 +55,34 @@ for exp_file in _experience_files:
         experience_data = pd.read_parquet(exp_file, engine="fastparquet")
         education_data = pd.read_parquet(edu_file, engine="fastparquet")
 
+        # Handle empty dataframes
+        produces["data"].parent.mkdir(parents=True, exist_ok=True)
+
+        if len(experience_data) == 0 or len(education_data) == 0:
+            pd.DataFrame().to_parquet(
+                produces["data"], engine="fastparquet", index=False
+            )
+            pd.DataFrame().to_csv(produces["tracking"], index=False)
+
+            metadata = {
+                "source_experience_file": exp_file.name,
+                "source_education_file": edu_file.name,
+                "output_file": produces["data"].name,
+                "processing_date": pd.Timestamp.now().isoformat(),
+                "initial_rows": 0,
+                "final_rows": 0,
+                "total_removed": 0,
+                "removal_rate": 0.0,
+                "note": "Empty input data",
+            }
+            with produces["metadata"].open("w") as f:
+                json.dump(metadata, f, indent=2, default=str)
+            return
+
         # Run sample selection
         final_data, tracking_log = run_sample_selection(experience_data, education_data)
 
         # Save output data
-        produces["data"].parent.mkdir(parents=True, exist_ok=True)
         final_data.to_parquet(produces["data"], engine="fastparquet", index=False)
 
         # Save tracking log
