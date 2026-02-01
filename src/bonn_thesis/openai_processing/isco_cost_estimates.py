@@ -94,6 +94,7 @@ def calculate_fine_tune_inference_cost(
         avg_output_tokens: Average output tokens per prediction
         model_pricing: Pricing dictionary
 
+
     Returns:
         dict: Inference cost estimates
     """
@@ -213,3 +214,194 @@ def estimate_fine_tune_costs(
             inference_costs["cost_per_prediction"] * 100000, 4
         ),
     }
+
+
+def count_classification_tokens(jsonl_path, encoding_name="cl100k_base"):
+    """Count tokens in classification JSONL file.
+
+    Args:
+        jsonl_path: Path to the JSONL file with classification requests
+        encoding_name: Tiktoken encoding name
+
+    Returns:
+        dict: Token counts and statistics
+    """
+    encoding = tiktoken.get_encoding(encoding_name)
+
+    total_input_tokens = 0
+    n_requests = 0
+
+    with jsonl_path.open() as f:
+        for line in f:
+            if not line.strip():  # Skip empty lines
+                continue
+
+            request = json.loads(line)
+            messages = request.get("body", {}).get("messages", [])
+
+            # Count tokens for system and user messages (input)
+            for message in messages:
+                if message.get("role") in ["system", "user"]:
+                    content = message.get("content", "")
+                    content_tokens = len(encoding.encode(content))
+                    # Add 4 tokens overhead per message for formatting
+                    total_input_tokens += content_tokens + 4
+
+            # Add 3 tokens per request for formatting overhead
+            total_input_tokens += 3
+            n_requests += 1
+
+    return {
+        "n_requests": n_requests,
+        "total_input_tokens": total_input_tokens,
+        "avg_input_tokens": total_input_tokens / n_requests if n_requests > 0 else 0,
+    }
+
+
+def estimate_classification_batch_costs(
+    jsonl_path,
+    config,
+    avg_output_tokens=3,
+    batch_api_discount=0.5,
+):
+    """Estimate costs for a single classification batch.
+
+    Args:
+        jsonl_path: Path to JSONL file with classification requests
+        config: Configuration dictionary with model info
+        avg_output_tokens: Expected average output tokens (default 3 for ISCO codes)
+        batch_api_discount: Batch API discount factor (default 0.5 = 50% off)
+
+    Returns:
+        dict: Cost estimates for the batch
+    """
+    from pathlib import Path
+
+    jsonl_path = Path(jsonl_path)
+
+    # Get model name from config
+    model_name = config.get("model", DEFAULT_OPENAI_MODEL)
+
+    # Extract base model name if it's a fine-tuned model
+    # Format: ft:BASE_MODEL:org:name:version
+    if model_name.startswith("ft:"):
+        base_model = model_name.split(":")[1]
+    else:
+        base_model = model_name
+
+    # Get pricing
+    if base_model not in OPENAI_API_MODELS:
+        available_models = ", ".join(OPENAI_API_MODELS.keys())
+        msg = f"Base model '{base_model}' not configured. Available: {available_models}"
+        raise ValueError(msg)
+
+    model_config = OPENAI_API_MODELS[base_model]
+    model_pricing = {
+        "fine_tuned_input": model_config.get(
+            "fine_tuned_input_cost", model_config.get("input_cost")
+        ),
+        "fine_tuned_output": model_config.get(
+            "fine_tuned_output_cost", model_config.get("output_cost")
+        ),
+    }
+
+    # Count tokens
+    token_counts = count_classification_tokens(jsonl_path)
+
+    # Calculate costs
+    inference_costs = calculate_fine_tune_inference_cost(
+        n_predictions=token_counts["n_requests"],
+        avg_input_tokens=token_counts["avg_input_tokens"],
+        avg_output_tokens=avg_output_tokens,
+        model_pricing=model_pricing,
+    )
+
+    # Apply batch API discount
+    total_cost_before_discount = inference_costs["estimated_total_inference_cost"]
+    total_cost_after_discount = total_cost_before_discount * batch_api_discount
+
+    # Extract batch info from filename
+    batch_name = jsonl_path.stem  # e.g., isco_classification_001
+
+    return {
+        "batch_name": batch_name,
+        "jsonl_file": jsonl_path.name,
+        "n_requests": token_counts["n_requests"],
+        "avg_input_tokens": round(token_counts["avg_input_tokens"], 2),
+        "avg_output_tokens": avg_output_tokens,
+        "total_input_tokens": token_counts["total_input_tokens"],
+        "total_output_tokens": token_counts["n_requests"] * avg_output_tokens,
+        "estimated_cost_before_discount": round(total_cost_before_discount, 4),
+        "batch_api_discount": batch_api_discount,
+        "estimated_cost_after_discount": round(total_cost_after_discount, 4),
+        "cost_per_request": round(
+            total_cost_after_discount / token_counts["n_requests"], 6
+        )
+        if token_counts["n_requests"] > 0
+        else 0,
+    }
+
+
+def estimate_all_classification_costs(
+    input_dir,
+    config,
+    avg_output_tokens=3,
+    batch_api_discount=0.5,
+):
+    """Estimate costs for all classification batches in a directory.
+
+    Args:
+        input_dir: Directory containing JSONL files
+        config: Configuration dictionary with model info
+        avg_output_tokens: Expected average output tokens
+        batch_api_discount: Batch API discount factor
+
+    Returns:
+        pd.DataFrame: Cost estimates for all batches
+    """
+    from pathlib import Path
+
+    import pandas as pd
+
+    input_dir = Path(input_dir)
+    jsonl_files = sorted(input_dir.glob("isco_classification_*.jsonl"))
+
+    results = []
+    for jsonl_file in jsonl_files:
+        # Skip empty files
+        if jsonl_file.stat().st_size == 0:
+            continue
+
+        batch_costs = estimate_classification_batch_costs(
+            jsonl_path=jsonl_file,
+            config=config,
+            avg_output_tokens=avg_output_tokens,
+            batch_api_discount=batch_api_discount,
+        )
+        results.append(batch_costs)
+
+    df = pd.DataFrame(results)
+
+    # Add summary row
+    if len(df) > 0:
+        summary = {
+            "batch_name": "TOTAL",
+            "jsonl_file": f"{len(df)} files",
+            "n_requests": df["n_requests"].sum(),
+            "avg_input_tokens": df["avg_input_tokens"].mean(),
+            "avg_output_tokens": avg_output_tokens,
+            "total_input_tokens": df["total_input_tokens"].sum(),
+            "total_output_tokens": df["total_output_tokens"].sum(),
+            "estimated_cost_before_discount": df[
+                "estimated_cost_before_discount"
+            ].sum(),
+            "batch_api_discount": batch_api_discount,
+            "estimated_cost_after_discount": df["estimated_cost_after_discount"].sum(),
+            "cost_per_request": df["estimated_cost_after_discount"].sum()
+            / df["n_requests"].sum()
+            if df["n_requests"].sum() > 0
+            else 0,
+        }
+        df = pd.concat([df, pd.DataFrame([summary])], ignore_index=True)
+
+    return df

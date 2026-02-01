@@ -1,0 +1,8 @@
+---
+experiment_id: isco_classification_001
+batch_name_prefix: isco_classification
+description: ISCO classification for all LinkedIn experience data
+model: ft:gpt-4o-mini-2024-07-18:personal:isco-classifier-v04:Cxjj4e3J
+temperature: 0
+system_message: You are a job classifier. Given a job title, classify the job according
+  to the ISCO-08 taxonomy at the 3-digit level.

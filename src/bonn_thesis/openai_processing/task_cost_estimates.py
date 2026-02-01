@@ -71,13 +71,13 @@ isco_dependencies = {
     / "openai_processing"
     / "configs"
     / "fine_tune"
-    / "isco_classifier_03.yaml",
+    / "isco_classifier_04.yaml",
     "training_file": OCCUPATION_DATA_BLD
     / "openai_fine_tune"
-    / "isco_training_data_03.jsonl",
+    / "isco_training_data_04.jsonl",
     "validation_file": OCCUPATION_DATA_BLD
     / "openai_fine_tune"
-    / "isco_validation_data_03.jsonl",
+    / "isco_validation_data_04.jsonl",
 }
 
 
@@ -123,3 +123,54 @@ def task_estimate_costs_isco_fine_tune(
     output_path = Path(produces)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)
+
+
+isco_classification_dependencies = {
+    "config": SRC
+    / "openai_processing"
+    / "configs"
+    / "occupation_classification"
+    / "occupation_classification_001.yaml",
+}
+
+
+def task_estimate_costs_isco_classification(
+    depends_on=isco_classification_dependencies,
+    produces=OCCUPATION_DATA_BLD / "isco_classification_metadata.csv",
+):
+    """Estimate costs for ISCO classification across all batches.
+
+    This task:
+    1. Loads classification configuration
+    2. Finds all JSONL files in openai_inputs
+    3. Counts tokens in each file
+    4. Estimates inference costs for all batches
+    5. Creates metadata CSV with batch-level and total costs
+    """
+    from bonn_thesis.config import BATCH_API_DISCOUNT
+    from bonn_thesis.openai_processing.isco_cost_estimates import (
+        estimate_all_classification_costs,
+    )
+
+    # Load configuration
+    with Path(depends_on["config"]).open() as f:
+        config = yaml.safe_load(f)
+
+    # Estimate costs for all batches
+    input_dir = OCCUPATION_DATA_BLD / "openai_inputs"
+    metadata_df = estimate_all_classification_costs(
+        input_dir=input_dir,
+        config=config,
+        avg_output_tokens=3,  # ISCO codes are 3 digits
+        batch_api_discount=BATCH_API_DISCOUNT,
+    )
+
+    # Add config metadata
+    metadata_df["model"] = config["model"]
+    metadata_df["experiment_id"] = config["experiment_id"]
+    metadata_df["description"] = config["description"]
+
+    # Save metadata
+    output_path = Path(produces)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata_df.to_csv(output_path, index=False)
