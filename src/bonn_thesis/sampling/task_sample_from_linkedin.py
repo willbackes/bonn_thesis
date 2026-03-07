@@ -28,6 +28,7 @@ from bonn_thesis.sampling.sample_linkedin_match_soep import (
         "soep_file": SOEP_DATA_BLD / "soep_clean.parquet",
         "produces": {
             "data": LINKEDIN_MATCHED_TO_SOEP_BLD / "linkedin_selected.parquet",
+            "soep_data": LINKEDIN_MATCHED_TO_SOEP_BLD / "soep_selected.parquet",
             "metadata": LINKEDIN_MATCHED_TO_SOEP_BLD / "linkedin_knn_metadata.jsonl",
         },
     },
@@ -97,6 +98,9 @@ def task_sample_linkedin_knn(
 
     # Save selected LinkedIn data
     linkedin_selected.to_parquet(produces["data"], engine="fastparquet", index=False)
+
+    # Save selected SOEP data (reference sample)
+    soep_filtered.to_parquet(produces["soep_data"], engine="fastparquet", index=False)
 
     # Save metadata
     with produces["metadata"].open("w") as f:
