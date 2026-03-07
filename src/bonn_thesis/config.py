@@ -14,7 +14,11 @@ BUNDESLAND_DATA_BLD = BLD.joinpath("data", "bundesland_data").resolve()
 EDUCATION_DATA_BLD = BLD.joinpath("data", "education_data").resolve()
 EXPERIENCE_DATA_BLD = BLD.joinpath("data", "experience_data").resolve()
 LOCATION_DATA_BLD = BLD.joinpath("data", "location_data").resolve()
+LINKEDIN_MATCHED_TO_SOEP_BLD = BLD.joinpath(
+    "data", "linkedin_matched_to_soep"
+).resolve()
 MERGED_EXP_ED_BLD = BLD.joinpath("data", "merged_exp_ed").resolve()
+MERGED_EXP_ED_SAMPLING_BLD = BLD.joinpath("data", "merged_exp_ed_sampling").resolve()
 OCCUPATION_DATA_BLD = BLD.joinpath("data", "occupation_data").resolve()
 SAMPLE_SELECTION_BLD = BLD.joinpath("data", "sample_selection").resolve()
 SOEP_DATA_BLD = BLD.joinpath("data", "soep_data").resolve()
@@ -132,6 +136,13 @@ EDUCATION_HIERARCHY = {
     "Bachelor degree": 3,
     "Master or Doctoral degree": 4,
 }
+
+# Sampling configuration
+MIN_SOEP_OBS = 5
+MIN_LINKEDIN_OBS = 5
+MATCHES_PER_SOEP = 3
+RANDOM_STATE = 42
+STRATA_COLS = ["syear", "isco_3_name", "education_grouped", "sex_en", "state_en"]
 
 # OPENAI CONFIGURATION
 OPENAI_API_MODELS = {
