@@ -1,0 +1,20 @@
+---
+experiment_id: wage_linkedin_exp_14
+description: LinkedIn annual wage estimation (include job title, company, and experience,
+  temp=0.7) - individual data
+
+# Reference to other configs
+aggregation_config: data_agg/linkedin_agg_14.yaml
+partition_config: data_partition/linkedin_partition_14.yaml
+prompt_template: prompts/prompts_wage_linkedin_14.yaml
+
+# OpenAI API settings
+model: gpt-4.1-nano
+temperature: 0.7
+max_tokens: 20
+
+# Batch identification
+batch_name: wage_linkedin_exp_14
+
+# Output settings
+output_format: numeric

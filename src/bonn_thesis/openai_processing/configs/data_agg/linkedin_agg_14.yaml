@@ -1,0 +1,37 @@
+---
+description: Individual level LinkedIn data
+# Grouping variables
+group_by: []
+
+# Aggregation functions for each variable
+aggregations: {}
+
+# Count observations per group
+count_column: job_title
+# Filters to apply before aggregation
+pre_aggregation_filters:
+  syear:
+    min: 2010
+    max: 2019  # inclusive
+  remove_outliers: false
+  # Exclude missing/invalid values
+  exclude_values:
+    isco_3_digit: []
+    education_grouped: []
+    sex_en: []
+    pgexpft: []
+
+  # Require at least one variable to be non-null
+  require_any_not_null:
+    - job_title
+    - exp_company
+    - pgexpft
+# Column renaming to match format (for compatibility with analysis)
+column_rename:
+  pgexpft: pgexpft_mean
+# Additional computed columns after aggregation (optional)
+derived_columns: {}
+# Options
+options:
+  observed_only: true  # For categorical groupby (observed=True in pandas)
+  reset_index: true  # Reset index after aggregation
