@@ -1,48 +1,111 @@
-# Templates for Reproducible Research Projects in Economics
+# Can ChatGPT predict wages? Synthetic data as complement for labour market research
 
-![MIT license](https://img.shields.io/github/license/OpenSourceEconomics/econ-project-templates)
-[![image](https://zenodo.org/badge/14557543.svg)](https://zenodo.org/badge/latestdoi/14557543)
-[![Documentation Status](https://readthedocs.org/projects/econ-project-templates/badge/?version=stable)](https://econ-project-templates.readthedocs.io/en/stable/)
-[![image](https://github.com/OpenSourceEconomics/econ-project-templates/actions/workflows/main.yml/badge.svg)](https://github.com/OpenSourceEconomics/econ-project-templates/actions/workflows/main.yml)
-[![image](https://codecov.io/gh/OpenSourceEconomics/econ-project-templates/branch/main/graph/badge.svg)](https://codecov.io/gh/OpenSourceEconomics/econ-project-templates)
-[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/OpenSourceEconomics/econ-project-templates/main.svg)](https://results.pre-commit.ci/latest/github/OpenSourceEconomics/econ-project-templates/main)
+**Master's Thesis, University of Bonn, Economics Department**
 
-This project provides a template for economists aimed at facilitating the production of
-reproducible research using Python. We provide a directory structure, a worked example,
-and many helpful modern tools. At its core, the computational pipeline uses
-[pytask](https://pytask-dev.readthedocs.io/en/stable/index.html) to ensure
-reproducibility. While the example focuses on Python, running
-[R](https://github.com/pytask-dev/pytask-r),
-[Julia](https://github.com/pytask-dev/pytask-julia), or
-[Stata](https://github.com/pytask-dev/pytask-stata) is very easy, too. In fact, until
-[version 0.9](https://econ-project-templates.readthedocs.io/en/v0.9.0/), the template
-included its worked example in R, too. We dropped it purely for lack of resources to
-maintain it.
+William Backes | Advisor: Prof. Dr. Sebastian Kube | 25 March 2026
 
-## Getting Started
+## Overview
 
-You can find all necessary resources to get started on our
-[documentation](https://econ-project-templates.readthedocs.io/en/stable/).
+Investigates whether LLMs (GPT-4) can predict gross labour income from SOEP survey and
+LinkedIn profile data (2013–2019). Uses measurement error frameworks to validate
+predictions at individual and stratum levels.
 
-## Contributing
+**Main findings:** LLM reproduces broad stratum-level wage patterns but exhibits
+focal-value heaping (€1,000 multiples), systematic underprediction in upper tail
+(non-classical error), and compressed distributions. LinkedIn-enriched prompts improve
+accuracy but predictions unsuitable as wage substitutes. Sample: 70,378 person-year
+observations (21,376 individuals, full-time workers only).
 
-We welcome suggestions on anything from improving the documentation to reporting bugs
-and requesting new features. Please open an
-[issue](https://github.com/OpenSourceEconomics/econ-project-templates/issues) in these
-cases.
+## Research Questions
 
-If you want to work on a specific feature, we are more than happy to get you started!
-Please [get in touch briefly](https://www.wiwi.uni-bonn.de/gaudecker), this is a small
-team so there is no need for a detailed formal process.
+1. Can LLMs predict labour income conditional on SOEP covariates?
+1. Does enriching LinkedIn information (job titles, companies) improve predictions?
 
-### Contributors
+## Methodology
 
-@hmgaudecker @timmens
+**LLM Setup:** Zero-shot prompting, GPT-4.1-nano, temperature=0.7
 
-### Former Contributor and Creator of pytask
+**Prompt format:** Year | ISCO-08 (3-digit) | 5 education levels | Sex | Federal state |
+Experience
 
-@tobiasraabe
+**Stratum-level validation:** Groups by education, occupation, location, sex, year.
+Compares average log wages: $u_g = \\bar{\\hat{y}}^{LLM}\_g - \\bar{y}^\*\_g$.
 
-### Former Contributors
+**Data preparation:** SOEP restricted to full-time workers; LinkedIn parsed via NLP;
+education/location normalized to ISCED/16 states; records harmonized for consistent
+coding.
 
-@janosg @PKEuS @philippmuller @julienschat @raholler @mj023
+## Key Results
+
+| Finding                   | Details                                                             |
+| ------------------------- | ------------------------------------------------------------------- |
+| **Focal heaping**         | Top 10 values = 50%+ of predictions; all €1,000 multiples           |
+| **Mean prediction error** | €3,105/month (LLM) vs €3,522/month (SOEP)                           |
+| **Distribution**          | Compressed wage range; systematic underprediction                   |
+| **Measurement error**     | Non-classical: mean-reverting ($\\mathbb{E}[u \\mid Y^\*] \\neq 0$) |
+| **LinkedIn enrichment**   | Improves accuracy, reduces heaping, closer SOEP distribution        |
+| **Mincer regressions**    | Coefficients closer to SOEP benchmarks with LinkedIn context        |
+|                           |                                                                     |
+
+## Project Structure
+
+```
+src/bonn_thesis/
+├── analysis/              # Notebooks: individual/grouped/LinkedIn comparisons
+├── data_management/       # Cleaning, education, location, ISCO, sampling
+├── openai_processing/     # Batch managers, fine-tuning, costs
+
+bld/
+├── data/                  # Processed outputs & metadata
+├── tables/                # Regression results (LaTeX)
+├── figures/               # Visualizations
+
+documents/
+├── thesis.tex             # Full manuscript
+├── paper.tex
+└── refs.bib
+```
+
+## Data Access & Compliance
+
+⚠️ **Raw data NOT included:**
+
+- **SOEP:** Restricted microdata; apply via [DIW Berlin](https://www.diw.de/soep)
+- **LinkedIn:** Proprietary;
+
+**Included:** Processed outputs, metadata, classification results, ISCO validation
+metrics
+
+Researchers replicating this work must apply independently for data access.
+
+## Installation & Use
+
+```bash
+# Setup
+python -m venv venv && source venv/bin/activate
+pip install -e ".[dev]"
+
+# Run pipeline
+pytask                      # Full workflow
+pytask -k data_management   # Data prep only
+pytask -k "task_clean_*"    # Specific tasks
+
+# Configure (optional)
+echo "OPENAI_API_KEY=your_key" > .env
+```
+
+## Stack
+
+Python 3.11+ | pytask | OpenAI API | pandas/scipy | statsmodels | SQLAlchemy | Jupyter |
+LaTeX
+
+## Key Files
+
+| Component      | File(s)                                                               | Purpose                                  |
+| -------------- | --------------------------------------------------------------------- | ---------------------------------------- |
+| Data cleaning  | `clean_*.py`                                                          | SOEP/LinkedIn standardization            |
+| Sample design  | `sample_selection.py`                                                 | Stratum definition                       |
+| LLM processing | `*batch_manager.py`                                                   | OpenAI API interaction                   |
+| Validation     | `1_compare_gpt_to_soep_individual.ipynb`, `2_compare_*_grouped.ipynb` | Measurement error analysis               |
+| Regression     | `*grouped*.ipynb`                                                     | Mincer equations, coefficient comparison |
+| Manuscript     | `documents/thesis.tex`                                                | Full thesis                              |
